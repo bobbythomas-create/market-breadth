@@ -1,0 +1,366 @@
+#!/usr/bin/env python3
+"""
+Market breadth ingest.
+
+Downloads NSE UDiFF bhavcopy (CM + FO), maintains a corporate-action-adjusted
+price store, and appends one breadth row per trading day per universe.
+
+Outputs
+  data/prices.parquet          raw + adjusted closes, all EQ series symbols
+  data/fno_universe.parquet    point-in-time F&O underlying list per date
+  data/indices.parquet         Nifty 50 close per date
+  data/breadth_history.csv     ONE row per (date, universe)  <- the only file the skill reads
+
+Usage
+  python ingest.py --backfill 2024-08-01
+  python ingest.py                      # incremental, last missing day up to today
+  python ingest.py --recompute          # rebuild breadth_history.csv from the store
+
+Design notes: see references/metric_definitions.md
+"""
+
+import argparse
+import io
+import os
+import sys
+import time
+import zipfile
+from datetime import date, datetime, timedelta
+
+import numpy as np
+import pandas as pd
+import requests
+
+CM_URL = "https://nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_{d}_F_0000.csv.zip"
+FO_URL = "https://nsearchives.nseindia.com/content/fo/BhavCopy_NSE_FO_0_0_0_{d}_F_0000.csv.zip"
+IDX_URL = "https://nsearchives.nseindia.com/content/indices/ind_close_all_{d2}.csv"
+MIRROR_CM = "https://raw.githubusercontent.com/chartiny/nse-cm-bhavcopy/master/{y}/nse-cm-bhavcopy-{iso}.csv"
+
+HEADERS = {
+    "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                   "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"),
+    "Accept": "*/*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://www.nseindia.com/all-reports",
+}
+
+DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")
+EQ_SERIES = {"EQ"}          # cash-market universe definition. BE/BZ/SM/GB excluded.
+MA_WINDOWS = [10, 20, 40, 50, 200]
+
+
+# ---------------------------------------------------------------- download
+
+def _session():
+    s = requests.Session()
+    s.headers.update(HEADERS)
+    try:
+        s.get("https://www.nseindia.com/all-reports", timeout=15)  # prime cookies
+    except Exception:
+        pass
+    return s
+
+
+def _get_zip_csv(sess, url, tries=3):
+    for i in range(tries):
+        try:
+            r = sess.get(url, timeout=45)
+            if r.status_code == 200 and r.content[:2] == b"PK":
+                z = zipfile.ZipFile(io.BytesIO(r.content))
+                return pd.read_csv(z.open(z.namelist()[0]), low_memory=False)
+            if r.status_code == 404:
+                return None                      # holiday or not published yet
+        except Exception as e:
+            print(f"  retry {i+1}: {e}", file=sys.stderr)
+        time.sleep(3 * (i + 1))
+    return None
+
+
+def fetch_cm(sess, d: date):
+    df = _get_zip_csv(sess, CM_URL.format(d=d.strftime("%Y%m%d")))
+    if df is None:                                # fallback: public mirror (history only)
+        try:
+            u = MIRROR_CM.format(y=d.year, iso=d.isoformat())
+            r = sess.get(u, timeout=30)
+            if r.status_code == 200:
+                df = pd.read_csv(io.StringIO(r.text), low_memory=False)
+                print("  (mirror)", end=" ")
+        except Exception:
+            return None
+    if df is None:
+        return None
+    df.columns = [c.strip() for c in df.columns]
+    df = df[(df["FinInstrmTp"] == "STK") & (df["SctySrs"].astype(str).str.strip().isin(EQ_SERIES))]
+    out = pd.DataFrame({
+        "date": pd.to_datetime(d),
+        "symbol": df["TckrSymb"].astype(str).str.strip(),
+        "close": pd.to_numeric(df["ClsPric"], errors="coerce"),
+        "prev_close": pd.to_numeric(df["PrvsClsgPric"], errors="coerce"),
+        "volume": pd.to_numeric(df["TtlTradgVol"], errors="coerce"),
+        "turnover": pd.to_numeric(df["TtlTrfVal"], errors="coerce"),
+    })
+    out = out.dropna(subset=["close", "prev_close"])
+    out = out[(out["close"] > 0) & (out["prev_close"] > 0)]
+    return out.drop_duplicates(subset=["symbol"])
+
+
+def fetch_fno(sess, d: date):
+    df = _get_zip_csv(sess, FO_URL.format(d=d.strftime("%Y%m%d")))
+    if df is None:
+        return None
+    df.columns = [c.strip() for c in df.columns]
+    stk = df[df["FinInstrmTp"].isin(["STF", "STO"])]          # single-stock fut + opt
+    syms = sorted(set(stk["TckrSymb"].astype(str).str.strip()))
+    return pd.DataFrame({"date": pd.to_datetime(d), "symbol": syms})
+
+
+def fetch_index(sess, d: date):
+    try:
+        r = sess.get(IDX_URL.format(d2=d.strftime("%d%m%Y")), timeout=30)
+        if r.status_code != 200:
+            return None
+        df = pd.read_csv(io.StringIO(r.text))
+        df.columns = [c.strip() for c in df.columns]
+        name_col = [c for c in df.columns if "Index Name" in c][0]
+        close_col = [c for c in df.columns if "Closing Index Value" in c][0]
+        row = df[df[name_col].astype(str).str.strip().str.upper() == "NIFTY 50"]
+        if row.empty:
+            return None
+        return pd.DataFrame({"date": [pd.to_datetime(d)],
+                             "nifty_close": [float(row.iloc[0][close_col])]})
+    except Exception:
+        return None
+
+
+# ---------------------------------------------------------------- store
+
+def _load(name, cols):
+    p = os.path.join(DATA, name)
+    if os.path.exists(p):
+        return pd.read_parquet(p)
+    return pd.DataFrame(columns=cols)
+
+
+def _save(df, name):
+    os.makedirs(DATA, exist_ok=True)
+    df.to_parquet(os.path.join(DATA, name), index=False)
+
+
+def update_store(start: date, end: date):
+    prices = _load("prices.parquet", ["date", "symbol", "close", "prev_close", "volume", "turnover"])
+    fno = _load("fno_universe.parquet", ["date", "symbol"])
+    idx = _load("indices.parquet", ["date", "nifty_close"])
+    have = set(pd.to_datetime(prices["date"]).dt.date) if len(prices) else set()
+
+    sess = _session()
+    d, added = start, 0
+    new_p, new_f, new_i = [], [], []
+    while d <= end:
+        if d.weekday() < 5 and d not in have:
+            print(f"{d} ...", end=" ", flush=True)
+            cm = fetch_cm(sess, d)
+            if cm is None or len(cm) < 100:
+                print("no data (holiday / not published)")
+            else:
+                new_p.append(cm)
+                f = fetch_fno(sess, d)
+                if f is not None:
+                    new_f.append(f)
+                i = fetch_index(sess, d)
+                if i is not None:
+                    new_i.append(i)
+                added += 1
+                print(f"{len(cm)} EQ symbols" + ("" if f is None else f", {len(f)} F&O"))
+            time.sleep(1.0)
+        d += timedelta(days=1)
+
+    if new_p:
+        prices = pd.concat([prices] + new_p, ignore_index=True)
+        prices = prices.drop_duplicates(subset=["date", "symbol"], keep="last")
+        _save(prices.sort_values(["symbol", "date"]), "prices.parquet")
+    if new_f:
+        fno = pd.concat([fno] + new_f, ignore_index=True).drop_duplicates(["date", "symbol"])
+        _save(fno, "fno_universe.parquet")
+    if new_i:
+        idx = pd.concat([idx] + new_i, ignore_index=True).drop_duplicates(["date"], keep="last")
+        _save(idx.sort_values("date"), "indices.parquet")
+    print(f"store: {added} new sessions, {prices['date'].nunique()} total sessions")
+    return prices, fno, idx
+
+
+# ---------------------------------------------------------------- breadth
+
+def adjusted_panel(prices: pd.DataFrame) -> pd.DataFrame:
+    """Close-to-close return chain. NSE resets PrvsClsgPric to the adjusted base on
+    ex-dates, so chaining close/prev_close yields a split- and bonus-adjusted series."""
+    p = prices.sort_values(["symbol", "date"]).copy()
+    p["ret"] = p["close"] / p["prev_close"] - 1.0
+    p.loc[p["ret"].abs() > 0.85, "ret"] = np.nan          # guard against bad ticks
+    p["ret"] = p["ret"].fillna(0.0)
+    p["adj"] = p.groupby("symbol")["ret"].transform(lambda s: (1 + s).cumprod())
+    return p
+
+
+def compute_breadth(prices, fno, idx) -> pd.DataFrame:
+    p = adjusted_panel(prices)
+    adj = p.pivot(index="date", columns="symbol", values="adj").sort_index()
+    ret = p.pivot(index="date", columns="symbol", values="ret").sort_index()
+    traded = adj.notna()
+
+    ma = {w: adj.rolling(w, min_periods=w).mean() for w in MA_WINDOWS}
+    r21 = adj / adj.shift(21) - 1
+    r5 = adj / adj.shift(5) - 1
+    hi52 = adj.rolling(250, min_periods=100).max()
+    lo52 = adj.rolling(250, min_periods=100).min()
+
+    fno_sets = {}
+    if len(fno):
+        f = fno.copy()
+        f["date"] = pd.to_datetime(f["date"])
+        fno_sets = {d: set(g["symbol"]) for d, g in f.groupby("date")}
+    fno_dates = sorted(fno_sets)
+
+    rows = []
+    for universe in ["ALL", "FNO"]:
+        for d in adj.index:
+            live = traded.loc[d]
+            if universe == "FNO":
+                if not fno_dates:
+                    continue
+                asof = max([x for x in fno_dates if x <= d], default=None)
+                if asof is None:
+                    continue
+                members = fno_sets[asof]
+                live = live & adj.columns.isin(members)
+            cols = adj.columns[live]
+            n = len(cols)
+            if n < 20:
+                continue
+
+            r = ret.loc[d, cols]
+            row = {
+                "date": d, "universe": universe, "universe_count": n,
+                "advances": int((r > 0).sum()),
+                "declines": int((r < 0).sum()),
+                "unchanged": int((r == 0).sum()),
+                "up_4pct": int((r >= 0.04).sum()),
+                "down_4pct": int((r <= -0.04).sum()),
+                "up_20pct_5d": int((r5.loc[d, cols] >= 0.20).sum()),
+                "down_20pct_5d": int((r5.loc[d, cols] <= -0.20).sum()),
+                "up_25pct_21d": int((r21.loc[d, cols] >= 0.25).sum()),
+                "down_25pct_21d": int((r21.loc[d, cols] <= -0.25).sum()),
+                "up_50pct_21d": int((r21.loc[d, cols] >= 0.50).sum()),
+                "down_50pct_21d": int((r21.loc[d, cols] <= -0.50).sum()),
+                "new_52w_high": int((adj.loc[d, cols] >= hi52.loc[d, cols] * 0.999).sum()),
+                "new_52w_low": int((adj.loc[d, cols] <= lo52.loc[d, cols] * 1.001).sum()),
+            }
+            row["net_4pct"] = row["up_4pct"] - row["down_4pct"]
+
+            for w in MA_WINDOWS:
+                m = ma[w].loc[d, cols]
+                valid = m.notna()
+                row[f"pct_above_{w}dma"] = round(
+                    float((adj.loc[d, cols][valid] > m[valid]).mean() * 100), 2) if valid.any() else np.nan
+                row[f"cover_{w}dma"] = int(valid.sum())
+
+            for a, b in [(10, 20), (20, 40), (50, 200)]:
+                x, y = ma[a].loc[d, cols], ma[b].loc[d, cols]
+                v = x.notna() & y.notna()
+                row[f"pct_{a}dma_gt_{b}dma"] = round(float((x[v] > y[v]).mean() * 100), 2) if v.any() else np.nan
+            rows.append(row)
+
+    b = pd.DataFrame(rows).sort_values(["universe", "date"])
+    if len(idx):
+        i = idx.copy()
+        i["date"] = pd.to_datetime(i["date"])
+        b = b.merge(i, on="date", how="left")
+    else:
+        b["nifty_close"] = np.nan
+    b["nifty_chg_pct"] = b.groupby("universe")["nifty_close"].pct_change().mul(100).round(2)
+    return add_divergence(b)
+
+
+def add_divergence(b: pd.DataFrame) -> pd.DataFrame:
+    """Price makes a 20d extreme, participation does not confirm."""
+    out = []
+    for u, g in b.groupby("universe"):
+        g = g.sort_values("date").copy()
+        px_hi = g["nifty_close"] >= g["nifty_close"].rolling(20, min_periods=20).max()
+        px_lo = g["nifty_close"] <= g["nifty_close"].rolling(20, min_periods=20).min()
+        br = g["pct_above_40dma"]
+        br_hi = br >= br.rolling(20, min_periods=20).max()
+        br_lo = br <= br.rolling(20, min_periods=20).min()
+        g["div_bearish"] = (px_hi & ~br_hi).fillna(False)
+        g["div_bullish"] = (px_lo & ~br_lo).fillna(False)
+        g["net4_5d"] = g["net_4pct"].rolling(5, min_periods=5).sum()
+        g["thrust"] = (g["up_4pct"] >= 0.10 * g["universe_count"]) & (g["up_4pct"] >= 3 * g["down_4pct"].clip(lower=1))
+        out.append(g)
+    return pd.concat(out, ignore_index=True)
+
+
+# ---------------------------------------------------------------- validate
+
+def validate(b: pd.DataFrame) -> list:
+    issues = []
+    for u, g in b.groupby("universe"):
+        g = g.sort_values("date")
+        chk = g["advances"] + g["declines"] + g["unchanged"] - g["universe_count"]
+        if (chk.abs() > 0).any():
+            issues.append(f"{u}: adv+dec+unch != universe on {int((chk.abs()>0).sum())} day(s)")
+        dup = g.duplicated(subset=["date"]).sum()
+        if dup:
+            issues.append(f"{u}: {dup} duplicate date rows")
+        sig = g[["advances", "declines", "up_4pct", "nifty_close"]].astype(str).agg("|".join, axis=1)
+        stale = (sig == sig.shift()).sum()
+        if stale:
+            issues.append(f"{u}: {stale} row(s) identical to the previous session (stale copy)")
+        drift = g["universe_count"].pct_change().abs()
+        if (drift > 0.10).any():
+            issues.append(f"{u}: universe size jumped >10% on {int((drift>0.10).sum())} day(s)")
+        if g["nifty_close"].isna().any():
+            issues.append(f"{u}: Nifty close missing on {int(g['nifty_close'].isna().sum())} day(s)")
+    return issues
+
+
+# ---------------------------------------------------------------- main
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--backfill", help="start date YYYY-MM-DD")
+    ap.add_argument("--end", help="end date YYYY-MM-DD (default today)")
+    ap.add_argument("--recompute", action="store_true", help="rebuild breadth from existing store")
+    a = ap.parse_args()
+
+    end = datetime.strptime(a.end, "%Y-%m-%d").date() if a.end else date.today()
+
+    if a.recompute:
+        prices = _load("prices.parquet", [])
+        fno = _load("fno_universe.parquet", [])
+        idx = _load("indices.parquet", [])
+    else:
+        if a.backfill:
+            start = datetime.strptime(a.backfill, "%Y-%m-%d").date()
+        else:
+            ex = _load("prices.parquet", ["date"])
+            start = (pd.to_datetime(ex["date"]).max().date() + timedelta(days=1)) if len(ex) else end - timedelta(days=400)
+        prices, fno, idx = update_store(start, end)
+
+    if not len(prices):
+        sys.exit("no price data in store")
+
+    b = compute_breadth(prices, fno, idx)
+    os.makedirs(DATA, exist_ok=True)
+    out = os.path.join(DATA, "breadth_history.csv")
+    b.to_csv(out, index=False)
+
+    issues = validate(b)
+    with open(os.path.join(DATA, "validation.txt"), "w") as f:
+        f.write(f"generated: {datetime.now().isoformat(timespec='seconds')}\n")
+        f.write(f"sessions: {b['date'].nunique()}  rows: {len(b)}\n")
+        f.write("\n".join(issues) if issues else "no issues found")
+    print(f"wrote {out}: {len(b)} rows, {b['date'].nunique()} sessions")
+    print("validation:", "; ".join(issues) if issues else "clean")
+
+
+if __name__ == "__main__":
+    main()
