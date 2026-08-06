@@ -61,27 +61,23 @@ def _session():
     return s
 
 
-def _get_zip_csv(sess, url, tries=2):
-    """Returns (status, df). status is 'ok', 'missing' (holiday / not published),
-    or 'blocked' (timeout, refusal, throttle). The caller must abort on repeated
-    'blocked', because a stalled host otherwise turns a backfill into a multi-day job."""
+def _get_zip_csv(sess, url, tries=3):
     for i in range(tries):
         try:
-            r = sess.get(url, timeout=20)
+            r = sess.get(url, timeout=45)
             if r.status_code == 200 and r.content[:2] == b"PK":
                 z = zipfile.ZipFile(io.BytesIO(r.content))
-                return "ok", pd.read_csv(z.open(z.namelist()[0]), low_memory=False)
+                return pd.read_csv(z.open(z.namelist()[0]), low_memory=False)
             if r.status_code == 404:
-                return "missing", None
-            print(f"  http {r.status_code}", file=sys.stderr)
+                return None                      # holiday or not published yet
         except Exception as e:
-            print(f"  attempt {i+1}: {type(e).__name__}", file=sys.stderr)
-        time.sleep(2)
-    return "blocked", None
+            print(f"  retry {i+1}: {e}", file=sys.stderr)
+        time.sleep(3 * (i + 1))
+    return None
 
 
-def fetch_cm(sess, d: date, prefer_mirror=False):
-    status, df = ("skip", None) if prefer_mirror else _get_zip_csv(sess, CM_URL.format(d=d.strftime("%Y%m%d")))
+def fetch_cm(sess, d: date):
+    df = _get_zip_csv(sess, CM_URL.format(d=d.strftime("%Y%m%d")))
     if df is None:                                # fallback: public mirror (history only)
         try:
             u = MIRROR_CM.format(y=d.year, iso=d.isoformat())
@@ -90,9 +86,9 @@ def fetch_cm(sess, d: date, prefer_mirror=False):
                 df = pd.read_csv(io.StringIO(r.text), low_memory=False)
                 print("  (mirror)", end=" ")
         except Exception:
-            return status, None
+            return None
     if df is None:
-        return status, None
+        return None
     df.columns = [c.strip() for c in df.columns]
     df = df[(df["FinInstrmTp"] == "STK") & (df["SctySrs"].astype(str).str.strip().isin(EQ_SERIES))]
     out = pd.DataFrame({
@@ -105,11 +101,11 @@ def fetch_cm(sess, d: date, prefer_mirror=False):
     })
     out = out.dropna(subset=["close", "prev_close"])
     out = out[(out["close"] > 0) & (out["prev_close"] > 0)]
-    return "ok", out.drop_duplicates(subset=["symbol"])
+    return out.drop_duplicates(subset=["symbol"])
 
 
 def fetch_fno(sess, d: date):
-    _, df = _get_zip_csv(sess, FO_URL.format(d=d.strftime("%Y%m%d")))
+    df = _get_zip_csv(sess, FO_URL.format(d=d.strftime("%Y%m%d")))
     if df is None:
         return None
     df.columns = [c.strip() for c in df.columns]
@@ -120,7 +116,7 @@ def fetch_fno(sess, d: date):
 
 def fetch_index(sess, d: date):
     try:
-        r = sess.get(IDX_URL.format(d2=d.strftime("%d%m%Y")), timeout=20)
+        r = sess.get(IDX_URL.format(d2=d.strftime("%d%m%Y")), timeout=30)
         if r.status_code != 200:
             return None
         df = pd.read_csv(io.StringIO(r.text))
@@ -150,33 +146,19 @@ def _save(df, name):
     df.to_parquet(os.path.join(DATA, name), index=False)
 
 
-def update_store(start: date, end: date, max_days=0, prefer_mirror=False):
+def update_store(start: date, end: date):
     prices = _load("prices.parquet", ["date", "symbol", "close", "prev_close", "volume", "turnover"])
     fno = _load("fno_universe.parquet", ["date", "symbol"])
     idx = _load("indices.parquet", ["date", "nifty_close"])
     have = set(pd.to_datetime(prices["date"]).dt.date) if len(prices) else set()
 
     sess = _session()
-    d, added, blocked_streak = start, 0, 0
+    d, added = start, 0
     new_p, new_f, new_i = [], [], []
     while d <= end:
-        if max_days and added >= max_days:
-            print(f"reached --max-days {max_days}, stopping. Run again to continue.")
-            break
         if d.weekday() < 5 and d not in have:
             print(f"{d} ...", end=" ", flush=True)
-            status, cm = fetch_cm(sess, d, prefer_mirror)
-            if status == "blocked":
-                blocked_streak += 1
-                print(f"BLOCKED ({blocked_streak}/5)")
-                if blocked_streak >= 5:
-                    print("\nNSE is not answering this machine. Aborting rather than crawling.\n"
-                          "Options: rerun with --prefer-mirror for dates up to 2025-12-31, or run "
-                          "this script on your own machine.", file=sys.stderr)
-                    break
-                d += timedelta(days=1)
-                continue
-            blocked_streak = 0
+            cm = fetch_cm(sess, d)
             if cm is None or len(cm) < 100:
                 print("no data (holiday / not published)")
             else:
@@ -189,7 +171,7 @@ def update_store(start: date, end: date, max_days=0, prefer_mirror=False):
                     new_i.append(i)
                 added += 1
                 print(f"{len(cm)} EQ symbols" + ("" if f is None else f", {len(f)} F&O"))
-            time.sleep(0.4)
+            time.sleep(1.0)
         d += timedelta(days=1)
 
     if new_p:
@@ -347,9 +329,6 @@ def main():
     ap.add_argument("--backfill", help="start date YYYY-MM-DD")
     ap.add_argument("--end", help="end date YYYY-MM-DD (default today)")
     ap.add_argument("--recompute", action="store_true", help="rebuild breadth from existing store")
-    ap.add_argument("--max-days", type=int, default=120, help="sessions per run; 0 for no cap")
-    ap.add_argument("--prefer-mirror", action="store_true",
-                    help="use the public bhavcopy mirror instead of NSE (history to 2025-12-31 only)")
     a = ap.parse_args()
 
     end = datetime.strptime(a.end, "%Y-%m-%d").date() if a.end else date.today()
@@ -364,7 +343,7 @@ def main():
         else:
             ex = _load("prices.parquet", ["date"])
             start = (pd.to_datetime(ex["date"]).max().date() + timedelta(days=1)) if len(ex) else end - timedelta(days=400)
-        prices, fno, idx = update_store(start, end, a.max_days, a.prefer_mirror)
+        prices, fno, idx = update_store(start, end)
 
     if not len(prices):
         sys.exit("no price data in store")
