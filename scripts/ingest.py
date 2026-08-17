@@ -2,51 +2,67 @@
 """
 Market breadth ingest.
 
-Downloads NSE UDiFF bhavcopy (CM + FO), maintains a corporate-action-adjusted
-price store, and appends one breadth row per trading day per universe.
+Downloads NSE UDiFF bhavcopy (CM + FO), index constituent lists, maintains a
+corporate-action-adjusted price store, and appends one breadth row per trading
+day per universe.
+
+Universes: ALL (NSE EQ), FNO, NIFTY50, NIFTYNEXT50, MIDCAP150, SMALLCAP250, NIFTY500
 
 Outputs
-  data/prices.parquet          raw + adjusted closes, all EQ series symbols
-  data/fno_universe.parquet    point-in-time F&O underlying list per date
-  data/indices.parquet         Nifty 50 close per date
-  data/breadth_history.csv     ONE row per (date, universe)  <- the only file the skill reads
+  data/prices.parquet           raw + adjusted closes, all EQ series symbols
+  data/fno_universe.parquet     point-in-time F&O underlying list per date
+  data/indices.parquet          index closes per date
+  data/constituents.json        current index constituent lists
+  data/lists/YYYY-MM-DD.json    symbol names behind clickable count cells
+  data/breadth_history.csv      ONE row per (date, universe) -- the only file the skill reads
 
 Usage
-  python ingest.py --backfill 2024-08-01
-  python ingest.py                      # incremental, last missing day up to today
-  python ingest.py --recompute          # rebuild breadth_history.csv from the store
-
-Design notes: see references/metric_definitions.md
+  python ingest.py --backfill 2024-04-01
+  python ingest.py                          # incremental
+  python ingest.py --recompute              # rebuild breadth from the store
 """
 
-import argparse
-import io
-import os
-import sys
-import time
-import zipfile
+import argparse, glob, io, json, os, sys, time, zipfile
 from datetime import date, datetime, timedelta
 
 import numpy as np
 import pandas as pd
 import requests
 
+# ---------------------------------------------------------------- URLs
+
 CM_URL = "https://nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_{d}_F_0000.csv.zip"
 FO_URL = "https://nsearchives.nseindia.com/content/fo/BhavCopy_NSE_FO_0_0_0_{d}_F_0000.csv.zip"
 IDX_URL = "https://nsearchives.nseindia.com/content/indices/ind_close_all_{d2}.csv"
 MIRROR_CM = "https://raw.githubusercontent.com/chartiny/nse-cm-bhavcopy/master/{y}/nse-cm-bhavcopy-{iso}.csv"
 
+INDEX_CONSTITUENTS = {
+    "NIFTY50":      "ind_nifty50list.csv",
+    "NIFTYNEXT50":  "ind_niftynext50list.csv",
+    "MIDCAP150":    "ind_niftymidcap150list.csv",
+    "SMALLCAP250":  "ind_niftysmallcap250list.csv",
+}
+CONST_URL = "https://nsearchives.nseindia.com/content/indices/{}"
+
+INDEX_CLOSE_NAMES = {
+    "nifty_close":      "Nifty 50",
+    "niftynext50":      "Nifty Next 50",
+    "midcap150_close":  "NIFTY MIDCAP 150",
+    "smallcap250_close":"NIFTY SMLCAP 250",
+    "nifty500_close":   "Nifty 500",
+}
+
 HEADERS = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                    "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"),
-    "Accept": "*/*",
-    "Accept-Language": "en-US,en;q=0.9",
+    "Accept": "*/*", "Accept-Language": "en-US,en;q=0.9",
     "Referer": "https://www.nseindia.com/all-reports",
 }
 
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")
-EQ_SERIES = {"EQ"}          # cash-market universe definition. BE/BZ/SM/GB excluded.
-MA_WINDOWS = [10, 20, 40, 50, 200]
+EQ_SERIES = {"EQ"}
+MA_WINDOWS = [10, 20, 50, 200]
+UNIVERSES = ["ALL", "FNO", "NIFTY50", "NIFTYNEXT50", "MIDCAP150", "SMALLCAP250", "NIFTY500"]
 
 
 # ---------------------------------------------------------------- download
@@ -55,16 +71,13 @@ def _session():
     s = requests.Session()
     s.headers.update(HEADERS)
     try:
-        s.get("https://www.nseindia.com/all-reports", timeout=15)  # prime cookies
+        s.get("https://www.nseindia.com/all-reports", timeout=15)
     except Exception:
         pass
     return s
 
 
 def _get_zip_csv(sess, url, tries=2):
-    """Returns (status, df). status is 'ok', 'missing' (holiday / not published),
-    or 'blocked' (timeout, refusal, throttle). The caller must abort on repeated
-    'blocked', because a stalled host otherwise turns a backfill into a multi-day job."""
     for i in range(tries):
         try:
             r = sess.get(url, timeout=20)
@@ -82,7 +95,7 @@ def _get_zip_csv(sess, url, tries=2):
 
 def fetch_cm(sess, d: date, prefer_mirror=False):
     status, df = ("skip", None) if prefer_mirror else _get_zip_csv(sess, CM_URL.format(d=d.strftime("%Y%m%d")))
-    if df is None:                                # fallback: public mirror (history only)
+    if df is None:
         try:
             u = MIRROR_CM.format(y=d.year, iso=d.isoformat())
             r = sess.get(u, timeout=30)
@@ -96,8 +109,7 @@ def fetch_cm(sess, d: date, prefer_mirror=False):
     df.columns = [c.strip() for c in df.columns]
     df = df[(df["FinInstrmTp"] == "STK") & (df["SctySrs"].astype(str).str.strip().isin(EQ_SERIES))]
     out = pd.DataFrame({
-        "date": pd.to_datetime(d),
-        "symbol": df["TckrSymb"].astype(str).str.strip(),
+        "date": pd.to_datetime(d), "symbol": df["TckrSymb"].astype(str).str.strip(),
         "close": pd.to_numeric(df["ClsPric"], errors="coerce"),
         "prev_close": pd.to_numeric(df["PrvsClsgPric"], errors="coerce"),
         "volume": pd.to_numeric(df["TtlTradgVol"], errors="coerce"),
@@ -113,7 +125,7 @@ def fetch_fno(sess, d: date):
     if df is None:
         return None
     df.columns = [c.strip() for c in df.columns]
-    stk = df[df["FinInstrmTp"].isin(["STF", "STO"])]          # single-stock fut + opt
+    stk = df[df["FinInstrmTp"].isin(["STF", "STO"])]
     syms = sorted(set(stk["TckrSymb"].astype(str).str.strip()))
     return pd.DataFrame({"date": pd.to_datetime(d), "symbol": syms})
 
@@ -127,13 +139,48 @@ def fetch_index(sess, d: date):
         df.columns = [c.strip() for c in df.columns]
         name_col = [c for c in df.columns if "Index Name" in c][0]
         close_col = [c for c in df.columns if "Closing Index Value" in c][0]
-        row = df[df[name_col].astype(str).str.strip().str.upper() == "NIFTY 50"]
-        if row.empty:
-            return None
-        return pd.DataFrame({"date": [pd.to_datetime(d)],
-                             "nifty_close": [float(row.iloc[0][close_col])]})
+        row = {"date": pd.to_datetime(d)}
+        for col_key, idx_name in INDEX_CLOSE_NAMES.items():
+            match = df[df[name_col].astype(str).str.strip().str.upper() == idx_name.upper()]
+            if not match.empty:
+                row[col_key] = float(match.iloc[0][close_col])
+        return pd.DataFrame([row]) if "nifty_close" in row else None
     except Exception:
         return None
+
+
+def fetch_constituents(sess):
+    """Fetch current index constituent lists from NSE. Returns dict or None."""
+    result = {}
+    for idx, filename in INDEX_CONSTITUENTS.items():
+        try:
+            r = sess.get(CONST_URL.format(filename), timeout=20)
+            if r.status_code == 200:
+                df = pd.read_csv(io.StringIO(r.text))
+                df.columns = [c.strip() for c in df.columns]
+                sym_col = [c for c in df.columns if "Symbol" in c][0]
+                result[idx] = sorted(set(df[sym_col].astype(str).str.strip()))
+                print(f"  constituents {idx}: {len(result[idx])}")
+        except Exception as e:
+            print(f"  constituents {idx}: failed ({e})", file=sys.stderr)
+    if len(result) == len(INDEX_CONSTITUENTS):
+        result["NIFTY500"] = sorted(set().union(*(set(v) for v in result.values())))
+        print(f"  constituents NIFTY500: {len(result['NIFTY500'])}")
+    return result if result else None
+
+
+def load_constituents():
+    p = os.path.join(DATA, "constituents.json")
+    if os.path.exists(p):
+        return json.load(open(p))
+    return None
+
+
+def save_constituents(const):
+    os.makedirs(DATA, exist_ok=True)
+    const["updated"] = datetime.now().strftime("%Y-%m-%d")
+    with open(os.path.join(DATA, "constituents.json"), "w") as f:
+        json.dump(const, f, indent=2)
 
 
 # ---------------------------------------------------------------- store
@@ -192,6 +239,15 @@ def update_store(start: date, end: date, max_days=0, prefer_mirror=False):
             time.sleep(0.4)
         d += timedelta(days=1)
 
+    # fetch / refresh constituents once per run
+    const = fetch_constituents(sess)
+    if const:
+        save_constituents(const)
+    else:
+        const = load_constituents()
+        if const:
+            print("  using saved constituents from", const.get("updated", "unknown"))
+
     if new_p:
         prices = pd.concat([prices] + new_p, ignore_index=True)
         prices = prices.drop_duplicates(subset=["date", "symbol"], keep="last")
@@ -203,25 +259,21 @@ def update_store(start: date, end: date, max_days=0, prefer_mirror=False):
         idx = pd.concat([idx] + new_i, ignore_index=True).drop_duplicates(["date"], keep="last")
         _save(idx.sort_values("date"), "indices.parquet")
     print(f"store: {added} new sessions, {prices['date'].nunique()} total sessions")
-    return prices, fno, idx
+    return prices, fno, idx, const
 
 
 # ---------------------------------------------------------------- breadth
 
-def adjusted_panel(prices: pd.DataFrame) -> pd.DataFrame:
-    """Close-to-close return chain. NSE resets PrvsClsgPric to the adjusted base on
-    ex-dates, so chaining close/prev_close yields a split- and bonus-adjusted series."""
+def adjusted_panel(prices):
     p = prices.sort_values(["symbol", "date"]).copy()
     p["ret"] = p["close"] / p["prev_close"] - 1.0
-    p.loc[p["ret"].abs() > 0.85, "ret"] = np.nan          # guard against bad ticks
+    p.loc[p["ret"].abs() > 0.85, "ret"] = np.nan
     p["ret"] = p["ret"].fillna(0.0)
     p["adj"] = p.groupby("symbol")["ret"].transform(lambda s: (1 + s).cumprod())
     return p
 
 
-def write_lists(lists: dict, keep_days: int = 90):
-    """One small JSON per session holding the symbols behind the clickable columns."""
-    import json, glob
+def write_lists(lists, keep_days=90):
     d = os.path.join(DATA, "lists")
     os.makedirs(d, exist_ok=True)
     for day, payload in lists.items():
@@ -232,7 +284,7 @@ def write_lists(lists: dict, keep_days: int = 90):
         os.remove(f)
 
 
-def compute_breadth(prices, fno, idx) -> pd.DataFrame:
+def compute_breadth(prices, fno, idx, const) -> pd.DataFrame:
     p = adjusted_panel(prices)
     adj = p.pivot(index="date", columns="symbol", values="adj").sort_index()
     ret = p.pivot(index="date", columns="symbol", values="ret").sort_index()
@@ -244,16 +296,24 @@ def compute_breadth(prices, fno, idx) -> pd.DataFrame:
     hi52 = adj.rolling(250, min_periods=100).max()
     lo52 = adj.rolling(250, min_periods=100).min()
 
+    # F&O sets
     fno_sets = {}
     if len(fno):
-        f = fno.copy()
-        f["date"] = pd.to_datetime(f["date"])
+        f = fno.copy(); f["date"] = pd.to_datetime(f["date"])
         fno_sets = {d: set(g["symbol"]) for d, g in f.groupby("date")}
     fno_dates = sorted(fno_sets)
 
-    rows = []
-    lists = {}
-    for universe in ["ALL", "FNO"]:
+    # constituent sets (single point-in-time for now)
+    const_members = {}
+    if const:
+        for u in ["NIFTY50", "NIFTYNEXT50", "MIDCAP150", "SMALLCAP250", "NIFTY500"]:
+            if u in const:
+                const_members[u] = set(const[u])
+
+    rows, lists = [], {}
+    for universe in UNIVERSES:
+        if universe not in ("ALL", "FNO") and universe not in const_members:
+            continue
         for d in adj.index:
             live = traded.loc[d]
             if universe == "FNO":
@@ -262,27 +322,25 @@ def compute_breadth(prices, fno, idx) -> pd.DataFrame:
                 asof = max([x for x in fno_dates if x <= d], default=None)
                 if asof is None:
                     continue
-                members = fno_sets[asof]
-                live = live & adj.columns.isin(members)
+                live = live & adj.columns.isin(fno_sets[asof])
+            elif universe in const_members:
+                live = live & adj.columns.isin(const_members[universe])
+
             cols = adj.columns[live]
             n = len(cols)
-            if n < 20:
+            if n < 10:
                 continue
 
             r = ret.loc[d, cols]
             row = {
                 "date": d, "universe": universe, "universe_count": n,
-                "advances": int((r > 0).sum()),
-                "declines": int((r < 0).sum()),
+                "advances": int((r > 0).sum()), "declines": int((r < 0).sum()),
                 "unchanged": int((r == 0).sum()),
-                "up_4pct": int((r >= 0.04).sum()),
-                "down_4pct": int((r <= -0.04).sum()),
+                "up_4pct": int((r >= 0.04).sum()), "down_4pct": int((r <= -0.04).sum()),
                 "up_20pct_5d": int((r5.loc[d, cols] >= 0.20).sum()),
                 "down_20pct_5d": int((r5.loc[d, cols] <= -0.20).sum()),
                 "up_25pct_21d": int((r21.loc[d, cols] >= 0.25).sum()),
                 "down_25pct_21d": int((r21.loc[d, cols] <= -0.25).sum()),
-                "up_50pct_21d": int((r21.loc[d, cols] >= 0.50).sum()),
-                "down_50pct_21d": int((r21.loc[d, cols] <= -0.50).sum()),
                 "new_52w_high": int((adj.loc[d, cols] >= hi52.loc[d, cols] * 0.999).sum()),
                 "new_52w_low": int((adj.loc[d, cols] <= lo52.loc[d, cols] * 1.001).sum()),
             }
@@ -299,22 +357,20 @@ def compute_breadth(prices, fno, idx) -> pd.DataFrame:
             }
 
             for w in MA_WINDOWS:
-                m = ma[w].loc[d, cols]
-                valid = m.notna()
-                row[f"pct_above_{w}dma"] = round(
-                    float((adj.loc[d, cols][valid] > m[valid]).mean() * 100), 2) if valid.any() else np.nan
+                m = ma[w].loc[d, cols]; valid = m.notna()
+                row[f"pct_above_{w}dma"] = round(float((adj.loc[d, cols][valid] > m[valid]).mean() * 100), 2) if valid.any() else np.nan
                 row[f"cover_{w}dma"] = int(valid.sum())
 
-            for a, b in [(10, 20), (20, 40), (50, 200)]:
-                x, y = ma[a].loc[d, cols], ma[b].loc[d, cols]
-                v = x.notna() & y.notna()
-                row[f"pct_{a}dma_gt_{b}dma"] = round(float((x[v] > y[v]).mean() * 100), 2) if v.any() else np.nan
+            for a, b in [(10, 20), (20, 50), (50, 200)]:
+                if a in MA_WINDOWS and b in MA_WINDOWS:
+                    x, y = ma[a].loc[d, cols], ma[b].loc[d, cols]
+                    v = x.notna() & y.notna()
+                    row[f"pct_{a}dma_gt_{b}dma"] = round(float((x[v] > y[v]).mean() * 100), 2) if v.any() else np.nan
             rows.append(row)
 
     b = pd.DataFrame(rows).sort_values(["universe", "date"])
     if len(idx):
-        i = idx.copy()
-        i["date"] = pd.to_datetime(i["date"])
+        i = idx.copy(); i["date"] = pd.to_datetime(i["date"])
         b = b.merge(i, on="date", how="left")
     else:
         b["nifty_close"] = np.nan
@@ -323,7 +379,7 @@ def compute_breadth(prices, fno, idx) -> pd.DataFrame:
     return add_divergence(b)
 
 
-def add_divergence(b: pd.DataFrame) -> pd.DataFrame:
+def add_divergence(b):
     """Price makes a 20d extreme, participation (% above 50 DMA) does not confirm."""
     out = []
     for u, g in b.groupby("universe"):
@@ -343,7 +399,7 @@ def add_divergence(b: pd.DataFrame) -> pd.DataFrame:
 
 # ---------------------------------------------------------------- validate
 
-def validate(b: pd.DataFrame) -> list:
+def validate(b):
     issues = []
     for u, g in b.groupby("universe"):
         g = g.sort_values("date")
@@ -356,7 +412,7 @@ def validate(b: pd.DataFrame) -> list:
         sig = g[["advances", "declines", "up_4pct", "nifty_close"]].astype(str).agg("|".join, axis=1)
         stale = (sig == sig.shift()).sum()
         if stale:
-            issues.append(f"{u}: {stale} row(s) identical to the previous session (stale copy)")
+            issues.append(f"{u}: {stale} row(s) identical to previous session (stale copy)")
         drift = g["universe_count"].pct_change().abs()
         if (drift > 0.10).any():
             issues.append(f"{u}: universe size jumped >10% on {int((drift>0.10).sum())} day(s)")
@@ -371,10 +427,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--backfill", help="start date YYYY-MM-DD")
     ap.add_argument("--end", help="end date YYYY-MM-DD (default today)")
-    ap.add_argument("--recompute", action="store_true", help="rebuild breadth from existing store")
-    ap.add_argument("--max-days", type=int, default=120, help="sessions per run; 0 for no cap")
-    ap.add_argument("--prefer-mirror", action="store_true",
-                    help="use the public bhavcopy mirror instead of NSE (history to 2025-12-31 only)")
+    ap.add_argument("--recompute", action="store_true")
+    ap.add_argument("--max-days", type=int, default=120)
+    ap.add_argument("--prefer-mirror", action="store_true")
     a = ap.parse_args()
 
     end = datetime.strptime(a.end, "%Y-%m-%d").date() if a.end else date.today()
@@ -383,18 +438,19 @@ def main():
         prices = _load("prices.parquet", [])
         fno = _load("fno_universe.parquet", [])
         idx = _load("indices.parquet", [])
+        const = load_constituents()
     else:
         if a.backfill:
             start = datetime.strptime(a.backfill, "%Y-%m-%d").date()
         else:
             ex = _load("prices.parquet", ["date"])
             start = (pd.to_datetime(ex["date"]).max().date() + timedelta(days=1)) if len(ex) else end - timedelta(days=400)
-        prices, fno, idx = update_store(start, end, a.max_days, a.prefer_mirror)
+        prices, fno, idx, const = update_store(start, end, a.max_days, a.prefer_mirror)
 
     if not len(prices):
         sys.exit("no price data in store")
 
-    b = compute_breadth(prices, fno, idx)
+    b = compute_breadth(prices, fno, idx, const)
     os.makedirs(DATA, exist_ok=True)
     out = os.path.join(DATA, "breadth_history.csv")
     b.to_csv(out, index=False)
@@ -404,7 +460,7 @@ def main():
         f.write(f"generated: {datetime.now().isoformat(timespec='seconds')}\n")
         f.write(f"sessions: {b['date'].nunique()}  rows: {len(b)}\n")
         f.write("\n".join(issues) if issues else "no issues found")
-    print(f"wrote {out}: {len(b)} rows, {b['date'].nunique()} sessions")
+    print(f"wrote {out}: {len(b)} rows, {b['date'].nunique()} sessions, {b['universe'].nunique()} universes")
     print("validation:", "; ".join(issues) if issues else "clean")
 
 
