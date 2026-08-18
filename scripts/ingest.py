@@ -42,6 +42,21 @@ INDEX_CONSTITUENTS = {
     "MIDCAP150":    "ind_niftymidcap150list.csv",
     "SMALLCAP250":  "ind_niftysmallcap250list.csv",
 }
+
+SECTOR_CONSTITUENTS = {
+    "SEC_BANK":     "ind_niftybanklist.csv",
+    "SEC_IT":       "ind_niftyitlist.csv",
+    "SEC_PHARMA":   "ind_niftypharmalist.csv",
+    "SEC_AUTO":     "ind_niftyautolist.csv",
+    "SEC_FMCG":     "ind_niftyfmcglist.csv",
+    "SEC_METAL":    "ind_niftymetallist.csv",
+    "SEC_REALTY":   "ind_niftyrealtylist.csv",
+    "SEC_ENERGY":   "ind_niftyenergylist.csv",
+    "SEC_INFRA":    "ind_niftyinfralist.csv",
+    "SEC_PSE":      "ind_niftypselist.csv",
+    "SEC_FINSRV":   "ind_niftyfinancelist.csv",
+    "SEC_MEDIA":    "ind_niftymedialist.csv",
+}
 CONST_URL = "https://nsearchives.nseindia.com/content/indices/{}"
 
 INDEX_CLOSE_NAMES = {
@@ -62,7 +77,10 @@ HEADERS = {
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")
 EQ_SERIES = {"EQ"}
 MA_WINDOWS = [10, 20, 50, 200]
-UNIVERSES = ["ALL", "FNO", "NIFTY50", "NIFTYNEXT50", "MIDCAP150", "SMALLCAP250", "NIFTY500"]
+UNIVERSES = (["ALL", "FNO", "NIFTY50", "NIFTYNEXT50", "MIDCAP150", "SMALLCAP250", "NIFTY500"]
+             + list(SECTOR_CONSTITUENTS.keys()))
+EXTENDED_MULT = 1.15   # "extended" = adjusted close more than 15% above its 50 DMA
+QUARTER = 63           # sessions in a trading quarter
 
 
 # ---------------------------------------------------------------- download
@@ -150,9 +168,9 @@ def fetch_index(sess, d: date):
 
 
 def fetch_constituents(sess):
-    """Fetch current index constituent lists from NSE. Returns dict or None."""
+    """Fetch current index + sector constituent lists from NSE. Returns dict or None."""
     result = {}
-    for idx, filename in INDEX_CONSTITUENTS.items():
+    for idx, filename in {**INDEX_CONSTITUENTS, **SECTOR_CONSTITUENTS}.items():
         try:
             r = sess.get(CONST_URL.format(filename), timeout=20)
             if r.status_code == 200:
@@ -163,8 +181,9 @@ def fetch_constituents(sess):
                 print(f"  constituents {idx}: {len(result[idx])}")
         except Exception as e:
             print(f"  constituents {idx}: failed ({e})", file=sys.stderr)
-    if len(result) == len(INDEX_CONSTITUENTS):
-        result["NIFTY500"] = sorted(set().union(*(set(v) for v in result.values())))
+    core = [k for k in INDEX_CONSTITUENTS if k in result]
+    if len(core) == len(INDEX_CONSTITUENTS):
+        result["NIFTY500"] = sorted(set().union(*(set(result[k]) for k in core)))
         print(f"  constituents NIFTY500: {len(result['NIFTY500'])}")
     return result if result else None
 
@@ -293,6 +312,8 @@ def compute_breadth(prices, fno, idx, const) -> pd.DataFrame:
     ma = {w: adj.rolling(w, min_periods=w).mean() for w in MA_WINDOWS}
     r21 = adj / adj.shift(21) - 1
     r5 = adj / adj.shift(5) - 1
+    r63 = adj / adj.shift(QUARTER) - 1
+    ext50 = adj > (ma[50] * EXTENDED_MULT)
     hi52 = adj.rolling(250, min_periods=100).max()
     lo52 = adj.rolling(250, min_periods=100).min()
 
@@ -306,7 +327,8 @@ def compute_breadth(prices, fno, idx, const) -> pd.DataFrame:
     # constituent sets (single point-in-time for now)
     const_members = {}
     if const:
-        for u in ["NIFTY50", "NIFTYNEXT50", "MIDCAP150", "SMALLCAP250", "NIFTY500"]:
+        for u in (["NIFTY50", "NIFTYNEXT50", "MIDCAP150", "SMALLCAP250", "NIFTY500"]
+                  + list(SECTOR_CONSTITUENTS.keys())):
             if u in const:
                 const_members[u] = set(const[u])
 
@@ -337,6 +359,9 @@ def compute_breadth(prices, fno, idx, const) -> pd.DataFrame:
                 "advances": int((r > 0).sum()), "declines": int((r < 0).sum()),
                 "unchanged": int((r == 0).sum()),
                 "up_4pct": int((r >= 0.04).sum()), "down_4pct": int((r <= -0.04).sum()),
+                "up_10pct": int((r >= 0.10).sum()), "down_10pct": int((r <= -0.10).sum()),
+                "up_25pct_63d": int((r63.loc[d, cols] >= 0.25).sum()),
+                "down_25pct_63d": int((r63.loc[d, cols] <= -0.25).sum()),
                 "up_20pct_5d": int((r5.loc[d, cols] >= 0.20).sum()),
                 "down_20pct_5d": int((r5.loc[d, cols] <= -0.20).sum()),
                 "up_25pct_21d": int((r21.loc[d, cols] >= 0.25).sum()),
@@ -345,6 +370,12 @@ def compute_breadth(prices, fno, idx, const) -> pd.DataFrame:
                 "new_52w_low": int((adj.loc[d, cols] <= lo52.loc[d, cols] * 1.001).sum()),
             }
             row["net_4pct"] = row["up_4pct"] - row["down_4pct"]
+            e = ext50.loc[d, cols]
+            ev = ma[50].loc[d, cols].notna()
+            row["extended_50dma"] = int((e & ev).sum())
+            row["pct_extended_50dma"] = round(float((e[ev]).mean() * 100), 2) if ev.any() else np.nan
+            h, l = row["new_52w_high"], row["new_52w_low"]
+            row["hl_ratio"] = round(h / (h + l), 3) if (h + l) > 0 else np.nan
 
             key = d.strftime("%Y-%m-%d")
             lists.setdefault(key, {})[universe] = {
@@ -354,6 +385,13 @@ def compute_breadth(prices, fno, idx, const) -> pd.DataFrame:
                 "lo52": sorted(cols[(adj.loc[d, cols] <= lo52.loc[d, cols] * 1.001).values]),
                 "up25": sorted(cols[(r21.loc[d, cols] >= 0.25).values]),
                 "dn25": sorted(cols[(r21.loc[d, cols] <= -0.25).values]),
+                "up10": sorted(cols[(r >= 0.10).values]),
+                "dn10": sorted(cols[(r <= -0.10).values]),
+                "up20_5d": sorted(cols[(r5.loc[d, cols] >= 0.20).values]),
+                "dn20_5d": sorted(cols[(r5.loc[d, cols] <= -0.20).values]),
+                "up25q": sorted(cols[(r63.loc[d, cols] >= 0.25).values]),
+                "dn25q": sorted(cols[(r63.loc[d, cols] <= -0.25).values]),
+                "ext50": sorted(cols[(ext50.loc[d, cols] & ma[50].loc[d, cols].notna()).values]),
             }
 
             for w in MA_WINDOWS:
@@ -392,6 +430,11 @@ def add_divergence(b):
         g["div_bearish"] = (px_hi & ~br_hi).fillna(False)
         g["div_bullish"] = (px_lo & ~br_lo).fillna(False)
         g["net4_5d"] = g["net_4pct"].rolling(5, min_periods=5).sum()
+        # Stockbee primary ratios. India-calibrated thresholds live in render.py.
+        g["ratio_5d"] = (g["up_4pct"].rolling(5, min_periods=5).sum()
+                         / g["down_4pct"].rolling(5, min_periods=5).sum().clip(lower=1)).round(2)
+        g["ratio_10d"] = (g["up_4pct"].rolling(10, min_periods=10).sum()
+                          / g["down_4pct"].rolling(10, min_periods=10).sum().clip(lower=1)).round(2)
         g["thrust"] = (g["up_4pct"] >= 0.10 * g["universe_count"]) & (g["up_4pct"] >= 3 * g["down_4pct"].clip(lower=1))
         out.append(g)
     return pd.concat(out, ignore_index=True)
