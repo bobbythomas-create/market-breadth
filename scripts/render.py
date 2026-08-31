@@ -15,8 +15,8 @@ import numpy as np, pandas as pd
 # Trend / structure / extremes / price lead. Momentum and range follow.
 GROUPS = [
     ("Trend, % above DMA", [("pct_above_10dma", "10", None), ("pct_above_20dma", "20", None),
-                            ("pct_above_50dma", "50", None), ("pct_above_200dma", "200", None),
-                            ("pct_extended_50dma", "Ext", "ext50")]),
+                            ("t2108", "T2108", None), ("pct_above_50dma", "50", None),
+                            ("pct_above_200dma", "200", None), ("pct_extended_50dma", "Ext", "ext50")]),
     ("MA structure", [("pct_10dma_gt_20dma", "10>20", None), ("pct_20dma_gt_50dma", "20>50", None),
                       ("pct_50dma_gt_200dma", "50>200", None)]),
     ("Extremes", [("new_52w_high", "52wH", "hi52"), ("new_52w_low", "52wL", "lo52"),
@@ -24,17 +24,20 @@ GROUPS = [
     ("Nifty", [("nifty_close", "Close", None), ("nifty_chg_pct", "Chg%", None)]),
     ("Breadth", [("advances", "Adv", None), ("declines", "Dec", None)]),
     ("Daily momentum", [("up_4pct", "U4", "up4"), ("down_4pct", "D4", "dn4"),
-                        ("net_4pct", "Net4", None), ("up_10pct", "U10", "up10"),
-                        ("down_10pct", "D10", "dn10"),
+                        ("net_4pct", "Net4", None), ("up_6pct", "U6", "up6"), ("down_6pct", "D6", "dn6"),
+                        ("up_10pct", "U10", "up10"), ("down_10pct", "D10", "dn10"),
                         ("ratio_5d", "R5", None), ("ratio_10d", "R10", None)]),
     ("Range movers", [("up_25pct_21d", "U25m", "up25"), ("down_25pct_21d", "D25m", "dn25"),
+                      ("up_50pct_21d", "U50m", "up50m"),
                       ("up_25pct_63d", "U25q", "up25q"), ("down_25pct_63d", "D25q", "dn25q"),
+                      ("up_35pct_65d", "U35q", "up35q"), ("down_35pct_65d", "D35q", "dn35q"),
                       ("up_20pct_5d", "U20w", "up20_5d"), ("down_20pct_5d", "D20w", "dn20_5d")]),
 ]
 COLS = [(k, l, lk) for _, cs in GROUPS for k, l, lk in cs]
-PCT_FMT = {k for k, _, _ in COLS if k.startswith("pct_")}
-NARROW = {"up_4pct", "down_4pct", "net_4pct", "up_10pct", "down_10pct", "ratio_5d", "ratio_10d",
-          "up_25pct_21d", "down_25pct_21d", "up_25pct_63d", "down_25pct_63d",
+PCT_FMT = {k for k, _, _ in COLS if k.startswith("pct_")} | {"t2108"}
+NARROW = {"up_4pct", "down_4pct", "net_4pct", "up_6pct", "down_6pct", "up_10pct", "down_10pct",
+          "ratio_5d", "ratio_10d", "up_25pct_21d", "down_25pct_21d", "up_50pct_21d",
+          "up_25pct_63d", "down_25pct_63d", "up_35pct_65d", "down_35pct_65d",
           "up_20pct_5d", "down_20pct_5d", "advances", "declines"}
 
 # ---------------------------------------------------------------- colour anchors
@@ -80,18 +83,18 @@ for prof in COUNT_PROFILES.values():
     prof["down_20pct_5d"] = prof["up_20pct_5d"]
     prof["new_52w_low"] = prof["new_52w_high"]
 
-INVERTED = {"declines", "down_4pct", "down_10pct", "down_25pct_21d", "down_25pct_63d",
-            "down_20pct_5d", "new_52w_low"}
+INVERTED = {"declines", "down_4pct", "down_6pct", "down_10pct", "down_25pct_21d", "down_25pct_63d",
+            "down_35pct_65d", "down_20pct_5d", "new_52w_low"}
 
 SECTORS = ["SEC_BANK", "SEC_FINSRV", "SEC_IT", "SEC_PHARMA", "SEC_AUTO", "SEC_FMCG",
            "SEC_METAL", "SEC_ENERGY", "SEC_INFRA", "SEC_REALTY", "SEC_PSE", "SEC_MEDIA"]
-SIZE_UNIVERSES = ["ALL", "FNO", "NIFTY50", "NIFTYNEXT50", "MIDCAP150", "SMALLCAP250", "NIFTY500"]
-ULBL = {"ALL": "All NSE", "FNO": "F&O", "NIFTY50": "Nifty 50", "NIFTYNEXT50": "Next 50",
+SIZE_UNIVERSES = ["ALL", "LIQUID", "FNO", "NIFTY50", "NIFTYNEXT50", "MIDCAP150", "SMALLCAP250", "NIFTY500"]
+ULBL = {"ALL": "All NSE", "LIQUID": "Liquid", "FNO": "F&O", "NIFTY50": "Nifty 50", "NIFTYNEXT50": "Next 50",
         "MIDCAP150": "Midcap 150", "SMALLCAP250": "Smallcap 250", "NIFTY500": "Nifty 500",
         "SEC_BANK": "Bank", "SEC_FINSRV": "Fin Services", "SEC_IT": "IT", "SEC_PHARMA": "Pharma",
         "SEC_AUTO": "Auto", "SEC_FMCG": "FMCG", "SEC_METAL": "Metal", "SEC_ENERGY": "Energy",
         "SEC_INFRA": "Infra", "SEC_REALTY": "Realty", "SEC_PSE": "PSE", "SEC_MEDIA": "Media"}
-WIDE_SET = {"ALL", "NIFTY500", "SMALLCAP250"}
+WIDE_SET = {"ALL", "LIQUID", "NIFTY500", "SMALLCAP250"}
 
 
 def _interp(anchors, v):
@@ -103,7 +106,7 @@ def shade(universe, key, value, n):
         return None
     if key == "nifty_close":
         return None
-    if key.startswith("pct_"):
+    if key.startswith("pct_") or key == "t2108":
         if key == "pct_extended_50dma":      # froth gauge, not a bull gauge
             return round(_interp([(0, .5), (8, .62), (18, .75), (30, .5), (42, .28), (55, .1)], value), 2)
         return round(_interp(DMA_ANCHORS, value), 2)
@@ -116,30 +119,44 @@ def shade(universe, key, value, n):
     if key == "nifty_chg_pct":
         return round(_interp([(-3, 0), (-1.5, .1), (-.5, .35), (0, .5), (.5, .65), (1.5, .9), (3, 1)], value), 2)
     prof = COUNT_PROFILES["WIDE" if universe in WIDE_SET else "NARROW"]
-    anchors = prof.get(key)
+    ALIAS = {"up_6pct": "up_4pct", "down_6pct": "down_4pct",
+             "up_35pct_65d": "up_25pct_63d", "down_35pct_65d": "down_25pct_63d",
+             "up_50pct_21d": "up_25pct_21d"}
+    anchors = prof.get(key) or prof.get(ALIAS.get(key, ""))
     if not anchors or not n:
         return None
     s = _interp(anchors, value / n * 100)
     return round(1.0 - s if key in INVERTED else s, 2)
 
 
+# Action-oriented regime, Bonde style. Primary gauge is % above 50 DMA; the 5-day
+# ratio and the 25%-in-quarter direction refine the call. Labels tell you what to DO.
+REGIME_ORDER = ["Aggressive", "Normal", "Defensive", "Stand aside", "Recovery watch", "n/a"]
+REGIME_TONE = {"Aggressive": 0.90, "Normal": 0.60, "Defensive": 0.28,
+               "Stand aside": 0.08, "Recovery watch": 0.42, "n/a": 0.5}
+REGIME_SIZE = {"Aggressive": "Full size, buy breakouts freely",
+               "Normal": "Standard size, be selective",
+               "Defensive": "Half size, tighten stops, favour leaders only",
+               "Stand aside": "No new longs, protect capital",
+               "Recovery watch": "Washed-out and turning up: scale in as thrust confirms",
+               "n/a": "Insufficient history"}
+
+
 def regime(row):
     a50 = row.get("pct_above_50dma", np.nan)
     if pd.isna(a50):
-        return "insufficient data"
-    if a50 >= 60:
-        return "broad uptrend"
+        return "n/a"
+    r5 = row.get("ratio_5d", np.nan)
+    if a50 < 12:
+        # deep washout. If the 5-day ratio has turned up hard, it is a recovery setup.
+        return "Recovery watch" if (not pd.isna(r5) and r5 >= 1.5) else "Stand aside"
+    if a50 >= 58 and (pd.isna(r5) or r5 >= 1.0):
+        return "Aggressive"
     if a50 >= 45:
-        return "narrowing uptrend"
+        return "Normal"
     if a50 >= 25:
-        return "corrective, mixed"
-    if a50 >= 12:
-        return "distribution"
-    return "washed out"
-
-
-REGIME_TONE = {"broad uptrend": 0.88, "narrowing uptrend": 0.62, "corrective, mixed": 0.4,
-               "distribution": 0.18, "washed out": 0.04, "insufficient data": 0.5}
+        return "Defensive"
+    return "Stand aside"
 
 
 def observations(g, universe):
@@ -147,6 +164,8 @@ def observations(g, universe):
     if len(g) < 12:
         return obs
     last = g.iloc[-1]
+    reg = regime(last)
+    obs.append(f"Regime {reg}: {REGIME_SIZE.get(reg, '')}")
     a50 = g["pct_above_50dma"].values
     a10 = g["pct_above_10dma"].values
     a200 = g["pct_above_200dma"].values
@@ -191,9 +210,15 @@ def observations(g, universe):
         elif hl < 0.2 and (last.get("new_52w_high", 0) + last.get("new_52w_low", 0)) > 10:
             obs.append("New lows overwhelming new highs, broad weakness")
 
+    u50 = last.get("up_50pct_21d", np.nan)
+    if not pd.isna(u50) and u50 > 20:
+        obs.append(f"{int(u50)} stocks up 50%+ in a month, above the 20 mark Bonde flags before corrections")
+
     flags = []
-    for _, r in g.tail(6).iterrows():
+    for _, r in g.tail(8).iterrows():
         d = r["date"].strftime("%d/%m")
+        if r.get("zweig", False):
+            flags.append(f"ZWEIG THRUST {d}")
         if r.get("thrust", False):
             flags.append(f"thrust {d}")
         if r.get("div_bearish", False):
@@ -202,7 +227,7 @@ def observations(g, universe):
             flags.append(f"bull div {d}")
     if flags:
         obs.append("Recent signals: " + ", ".join(flags[:4]))
-    return obs[:5]
+    return obs[:6]
 
 
 def regime_runs(g):
@@ -227,6 +252,64 @@ def load_lists(csv_dir, keep=8):
         except Exception:
             pass
     return out
+
+
+def build_actionables(df, sizes):
+    """One consolidated action read, computed from the latest session of each size universe."""
+    prim = "LIQUID" if "LIQUID" in sizes else "ALL"
+    g = df[df.universe == prim].sort_values("date")
+    if not len(g):
+        return {}
+    last = g.iloc[-1]
+    reg = regime(last)
+    a = {"primary": ULBL.get(prim, prim), "regime": reg, "size": REGIME_SIZE.get(reg, ""),
+         "checks": [], "rotation": {}, "extremes": []}
+
+    r5 = last.get("ratio_5d", np.nan)
+    a50 = last.get("pct_above_50dma", np.nan)
+    a200 = last.get("pct_above_200dma", np.nan)
+    t = last.get("t2108", np.nan)
+    ext = last.get("pct_extended_50dma", np.nan)
+    u50 = last.get("up_50pct_21d", np.nan)
+    hl = last.get("hl_ratio", np.nan)
+    zw = bool(g.tail(10).get("zweig", pd.Series([False])).any()) if "zweig" in g else False
+
+    def chk(label, ok, detail):
+        a["checks"].append({"k": label, "s": ok, "d": detail})
+
+    if not pd.isna(a50):
+        chk("Intermediate trend", "green" if a50 >= 58 else "amber" if a50 >= 45 else "red",
+            f"{a50:.0f}% above 50 DMA")
+    if not pd.isna(a200):
+        chk("Long-term trend", "green" if a200 >= 55 else "amber" if a200 >= 40 else "red",
+            f"{a200:.0f}% above 200 DMA")
+    if not pd.isna(r5):
+        chk("5-day momentum", "green" if r5 >= 3 else "amber" if r5 >= 0.9 else "red",
+            f"ratio {r5:.2f}" + (" (aggressive extreme)" if r5 >= 5 else " (defensive extreme)" if r5 <= 0.5 else ""))
+    if not pd.isna(hl):
+        chk("New highs vs lows", "green" if hl >= 0.7 else "amber" if hl >= 0.3 else "red",
+            f"H/L ratio {hl:.2f}")
+    if not pd.isna(ext):
+        chk("Froth (extended)", "red" if ext >= 35 else "amber" if ext >= 25 else "green",
+            f"{ext:.0f}% extended >15% above 50 DMA")
+    if not pd.isna(u50):
+        chk("Top warning (50%/mo)", "red" if u50 > 20 else "green",
+            f"{int(u50)} stocks, Bonde flags >20")
+    if zw:
+        a["extremes"].append("Zweig Breadth Thrust fired in the last 10 sessions, a rare and historically bullish signal")
+
+    # rotation, if sectors present
+    secs = [u for u in SECTORS if u in df["universe"].unique()]
+    if secs:
+        rr = []
+        for u in secs:
+            gg = df[df.universe == u].sort_values("date")
+            if len(gg):
+                rr.append((ULBL.get(u, u), gg.iloc[-1].get("pct_above_50dma", np.nan)))
+        rr = [x for x in rr if not pd.isna(x[1])]
+        rr.sort(key=lambda x: -x[1])
+        a["rotation"] = {"lead": rr[:3], "lag": rr[-3:]}
+    return a
 
 
 def build(csv, out, rows, repo):
@@ -268,21 +351,24 @@ def build(csv, out, rows, repo):
         payload[u] = {"rows": recs, "regime": regime(last), "label": ULBL.get(u, u),
                       "asof": last["date"].strftime("%d %b %Y"), "sessions": int(len(gg)),
                       "obs": observations(gg, u)}
-        # thin series for charts: date + 4 numbers
-        sub = gg.tail(250)
+        # chart series: full history (capped 520 sessions ~ 2yr) so the JS can window it
+        sub = g.tail(520)
+        def col(c): return [None if pd.isna(v) else round(float(v), 1) for v in sub[c]] if c in sub else []
         series[u] = {"d": [x.strftime("%d/%m/%y") for x in sub["date"]],
-                     "a50": [None if pd.isna(v) else round(float(v), 1) for v in sub["pct_above_50dma"]],
-                     "a200": [None if pd.isna(v) else round(float(v), 1) for v in sub["pct_above_200dma"]],
+                     "a50": col("pct_above_50dma"), "a200": col("pct_above_200dma"),
+                     "t2108": col("t2108"),
                      "nifty": [None if pd.isna(v) else round(float(v), 0) for v in sub["nifty_close"]],
                      "net4": [None if pd.isna(v) else int(v) for v in sub["net_4pct"]],
-                     "reg": [REGIME_TONE.get(regime(r), 0.5) for _, r in sub.iterrows()]}
+                     "zweig": [i for i, (_, r) in enumerate(sub.iterrows()) if bool(r.get("zweig", False))],
+                     "thr": [i for i, (_, r) in enumerate(sub.iterrows()) if bool(r.get("thrust", False))]}
         if u in sizes:
             summary[u] = {"asof": last["date"].strftime("%Y-%m-%d"), "n": int(last["universe_count"]),
                           "regime": regime(last), "a50": last.get("pct_above_50dma"),
                           "a200": last.get("pct_above_200dma"), "r5": last.get("ratio_5d"),
                           "flags": recs[0][3]}
 
-    runs = regime_runs(df[df.universe == (sizes[0] if sizes else present.pop())].sort_values("date"))
+    runs = regime_runs(df[df.universe == (sizes[0] if sizes else next(iter(present)))].sort_values("date"))
+    actions = build_actionables(df, sizes)
 
     html = (TEMPLATE
             .replace("__DATA__", json.dumps(payload, separators=(",", ":")))
@@ -295,6 +381,8 @@ def build(csv, out, rows, repo):
             .replace("__SIZES__", json.dumps(sizes))
             .replace("__SECTS__", json.dumps(sects))
             .replace("__ULBL__", json.dumps(ULBL))
+            .replace("__ACTIONS__", json.dumps(actions, separators=(",", ":")))
+            .replace("__REGSIZE__", json.dumps(REGIME_SIZE))
             .replace("__REPO__", repo or ""))
     with open(out, "w") as f:
         f.write(html)
@@ -444,7 +532,9 @@ footer{margin-top:9px;color:var(--dim);font-size:10px;line-height:1.55}
 <div class="pane" id="p-compare"></div>
 <div class="pane" id="p-regime"></div>
 <div class="pane" id="p-scanner"></div>
+<div class="pane" id="p-actions"></div>
 <div class="pane" id="p-guide"></div>
+<div class="pane" id="p-reference"></div>
 
 <footer id="ft"></footer></div>
 <div id="ov"><div id="bx"><h3 id="bh"></h3><div class="sub" id="bs"></div><div class="sy" id="by"></div>
@@ -452,12 +542,13 @@ footer{margin-top:9px;color:var(--dim);font-size:10px;line-height:1.55}
 <script>
 const KEYS=__KEYS__,KI={};__KEYS__.forEach((k,i)=>KI[k]=i);
 const DATA=__DATA__,SER=__SERIES__,RUNS=__RUNS__,GROUPS=__GROUPS__,NARROW=new Set(__NARROW__),
- LISTS=__LISTS__,SIZES=__SIZES__,SECTS=__SECTS__,ULBL=__ULBL__,REPO="__REPO__";
+ LISTS=__LISTS__,SIZES=__SIZES__,SECTS=__SECTS__,ULBL=__ULBL__,REPO="__REPO__",ACTIONS=__ACTIONS__,REGSIZE=__REGSIZE__;
 const LBL={up4:"up 4%+",dn4:"down 4%+",up10:"up 10%+",dn10:"down 10%+",hi52:"at a 52-week high",
  lo52:"at a 52-week low",up25:"up 25%+ in 21 sessions",dn25:"down 25%+ in 21 sessions",
  up25q:"up 25%+ in a quarter",dn25q:"down 25%+ in a quarter",up20_5d:"up 20%+ in 5 sessions",
  dn20_5d:"down 20%+ in 5 sessions",ext50:"more than 15% above its 50 DMA"};
-let U=SIZES[0]||SECTS[0],N=250,TAB="table";
+let U=SIZES[0]||SECTS[0],N=250,TAB="table",CHW=520;
+const RCOL={"Aggressive":"#2c8f57","Normal":"#5b8f3f","Defensive":"#9c7a30","Stand aside":"#8f3a2c","Recovery watch":"#3f7a8a","n/a":"#3a444d"};
 const D_=0,WD_=1,N_=2,F_=3,V_=4,C_=5,ISO_=6;
 const gv=(r,k)=>{const i=KI[k];return i==null?null:r[V_][i]};
 const gc=(r,k)=>{const i=KI[k];return i==null?null:r[C_][i]};
@@ -479,10 +570,10 @@ const fmt=(k,v)=>v==null?'':k==='nifty_close'?v.toLocaleString('en-IN',{maximumF
 function usel(){const e=document.getElementById('usel');
  const list=(TAB==='sectors')?SECTS:SIZES;
  e.innerHTML=list.map(u=>`<div class="us" data-u="${u}" aria-selected="${u===U}">${ULBL[u]||u}</div>`).join('');
- e.style.display=(TAB==='compare'||TAB==='guide'||TAB==='sectors')?'none':'flex';
+ e.style.display=(TAB==='compare'||TAB==='guide'||TAB==='reference'||TAB==='actions'||TAB==='regime'||TAB==='sectors')?'none':'flex';
  e.querySelectorAll('.us').forEach(t=>t.onclick=()=>{U=t.dataset.u;usel();draw()})}
-function tabs(){const T=[['table','Table'],['charts','Charts'],['sectors','Sectors'],['compare','Compare'],
- ['regime','Regime'],['scanner','Scanner'],['guide','Guide']];
+function tabs(){const T=[['table','Table'],['charts','Charts'],['sectors','Sectors'],['compare','Compare'],['actions','Actionables'],
+ ['regime','Regime'],['scanner','Scanner'],['guide','Guide'],['reference','Reference']];
  document.getElementById('tabs').innerHTML=T.map(([k,l])=>
   `<div class="tb" data-t="${k}" aria-selected="${k===TAB}">${l}</div>`).join('');
  document.querySelectorAll('.tb').forEach(t=>t.onclick=()=>{TAB=t.dataset.t;
@@ -492,7 +583,7 @@ function tabs(){const T=[['table','Table'],['charts','Charts'],['sectors','Secto
 
 /* ---- table pane ---- */
 function pills(d){const r=d.rows[0],p=[];
- p.push(`<div class="pill reg"><div class="k">Regime &middot; ${d.label}</div><div class="v">${d.regime}</div></div>`);
+ p.push(`<div class="pill reg"><div class="k">Regime &middot; ${d.label}</div><div class="v" style="color:${RCOL[d.regime]||'inherit'}">${d.regime}</div></div>`);
  [['pct_above_10dma','&gt;10 DMA','%'],['pct_above_50dma','&gt;50 DMA','%'],['pct_above_200dma','&gt;200 DMA','%'],
   ['ratio_5d','5-day ratio',''],['hl_ratio','H/L ratio','']].forEach(([k,l])=>{
   const v=gv(r,k);p.push(`<div class="pill"><div class="k">${l}</div><div class="v">${
@@ -533,8 +624,13 @@ function line(vals,w,h,lo,hi,col,fill){const n=vals.length;if(!n)return'';
  const d=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
  return(fill?`<path d="${d} L ${w} ${h} L 0 ${h} Z" fill="${fill}"/>`:'')+
   `<path d="${d}" fill="none" stroke="${col}" stroke-width="1.4"/>`}
-function chartPane(){const s=SER[U],d=DATA[U];if(!s)return;
- const W=1000,H=170,n=s.d.length;
+function chartPane(){const s0=SER[U],d=DATA[U];if(!s0)return;
+ const W=1000,H=170;
+ const tot=s0.d.length,st=CHW?Math.max(0,tot-CHW):0;
+ const s={d:s0.d.slice(st),a50:s0.a50.slice(st),a200:s0.a200.slice(st),t2108:(s0.t2108||[]).slice(st),
+   nifty:s0.nifty.slice(st),net4:s0.net4.slice(st),
+   zweig:(s0.zweig||[]).filter(i=>i>=st).map(i=>i-st),thr:(s0.thr||[]).filter(i=>i>=st).map(i=>i-st)};
+ const n=s.d.length;
  const nz=s.nifty.filter(v=>v!=null),nlo=Math.min(...nz)*0.99,nhi=Math.max(...nz)*1.01;
  const bands=[[0,15,'#3a1c17'],[15,30,'#41291c'],[30,45,'#3d3520'],[45,60,'#25341f'],[60,100,'#1b3a26']];
  const bandsSvg=bands.map(([a,b,c])=>`<rect x="0" y="${H-b/100*H}" width="${W}" height="${(b-a)/100*H}" fill="${c}" opacity=".55"/>`).join('');
@@ -544,14 +640,22 @@ function chartPane(){const s=SER[U],d=DATA[U];if(!s)return;
  const n4bars=s.net4.map((v,i)=>{const x=i/n*W,bw=Math.max(1.2,W/n-0.6),hh=Math.abs(v||0)/n4max*46;
   return`<rect x="${x.toFixed(1)}" y="${(v>=0?50-hh:50).toFixed(1)}" width="${bw.toFixed(1)}" height="${hh.toFixed(1)}" fill="${v>=0?'#3f9a63':'#c2503c'}"/>`}).join('');
  document.getElementById('p-charts').innerHTML=`
+ <div style="margin-bottom:7px"><select id="chw">
+  <option value="120">6 months</option><option value="250">1 year</option>
+  <option value="520" selected>2 years</option><option value="0">All history</option></select></div>
  <div class="obs" id="obsC"></div>
  <div class="card"><h3>Participation vs price &mdash; ${d.label}</h3>
   <svg viewBox="0 0 ${W} ${H+20}" preserveAspectRatio="none" style="height:200px">${bandsSvg}${gridx}
    ${line(s.a50,W,H,0,100,'#5cc287')}${line(s.a200,W,H,0,100,'#6f9fd8')}
-   ${line(s.nifty,W,H,nlo,nhi,'#d8b34a')}${lbl}</svg>
+   ${(s.t2108&&s.t2108.length?line(s.t2108,W,H,0,100,'#b98bd8'):'')}
+   ${line(s.nifty,W,H,nlo,nhi,'#d8b34a')}
+   ${s.zweig.map(i=>`<circle cx="${(i/(n-1)*W).toFixed(1)}" cy="6" r="4" fill="#e8d24a" stroke="#111"/>`).join('')}
+   ${s.thr.map(i=>`<circle cx="${(i/(n-1)*W).toFixed(1)}" cy="6" r="2.4" fill="#5cc287"/>`).join('')}${lbl}</svg>
   <div class="cap"><span style="color:#5cc287">&#9644;</span> % above 50 DMA &nbsp;
+   <span style="color:#b98bd8">&#9644;</span> T2108 (% above 40 DMA) &nbsp;
    <span style="color:#6f9fd8">&#9644;</span> % above 200 DMA &nbsp;
-   <span style="color:#d8b34a">&#9644;</span> Nifty 50, rescaled.
+   <span style="color:#d8b34a">&#9644;</span> Nifty 50, rescaled &nbsp;
+   <span style="color:#e8d24a">&#9679;</span> Zweig thrust &nbsp;<span style="color:#5cc287">&#9679;</span> 4% thrust.
    Background bands mark regime zones: red below 30, amber 30 to 45, green above 60.
    Where the gold line rises while the green line falls, the index is being carried by fewer stocks.</div></div>
  <div class="card"><h3>Net 4% movers</h3>
@@ -559,6 +663,7 @@ function chartPane(){const s=SER[U],d=DATA[U];if(!s)return;
    <line x1="0" y1="50" x2="${W}" y2="50" stroke="#2b353e"/>${n4bars}</svg>
   <div class="cap">Stocks up 4% minus stocks down 4%, each session. Clusters of tall green bars after a decline
    are the thrust signature; sustained red under a flat index is distribution.</div></div>`;
+ const sel=document.getElementById('chw');if(sel){sel.value=String(CHW);sel.onchange=e=>{CHW=+e.target.value;chartPane()}}
  obsP(d,'obsC')}
 
 /* ---- sectors ---- */
@@ -643,70 +748,109 @@ function scannerPane(){const d=DATA[U],iso=d.rows[0][ISO_],L=LISTS[iso]&&LISTS[i
    false positives in distribution.</div></div>`}
 
 /* ---- guide ---- */
+function actionsPane(){const A=ACTIONS;const el=document.getElementById('p-actions');
+ if(!A||!A.checks){el.innerHTML='<div class="card"><h3>Actionables</h3><div class="cap">No data.</div></div>';return}
+ const dot=s=>`<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${s==='green'?'#3f9a63':s==='amber'?'#d8b34a':'#c2503c'};margin-right:7px;vertical-align:0"></span>`;
+ const checks=A.checks.map(c=>`<tr><td style="width:22px">${dot(c.s)}</td><td style="font-weight:600">${c.k}</td><td style="color:#aab8c2">${c.d}</td></tr>`).join('');
+ const greens=A.checks.filter(c=>c.s==='green').length,reds=A.checks.filter(c=>c.s==='red').length;
+ const lean=reds>greens?'risk-off, protect capital':greens>=reds*2?'constructive, press advantage':'mixed, stay selective';
+ let rot='';
+ if(A.rotation&&A.rotation.lead){
+  rot=`<div class="card"><h3>Sector rotation, where to fish</h3>
+   <div class="cr"><span class="cn" style="color:#5cc287">Leading</span><span style="color:#aab8c2">${A.rotation.lead.map(x=>x[0]+' '+x[1].toFixed(0)+'%').join(' &middot; ')}</span></div>
+   <div class="cr"><span class="cn" style="color:#e07a63">Lagging</span><span style="color:#aab8c2">${A.rotation.lag.map(x=>x[0]+' '+x[1].toFixed(0)+'%').join(' &middot; ')}</span></div>
+   <div class="cap">Momentum setups work best in leading sectors. Avoid fighting the laggards even with a good stock thesis; breadth is against you there.</div></div>`;}
+ const ex=A.extremes&&A.extremes.length?`<div class="note">${A.extremes.join('<br>')}</div>`:'';
+ el.innerHTML=`
+ <div class="card"><h3>Today&rsquo;s read &mdash; ${A.primary}</h3>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+   <span style="font-size:20px;font-weight:700;color:${RCOL[A.regime]}">${A.regime}</span>
+   <span style="color:#aab8c2;font-size:12px">${A.size}</span></div>
+  <table class="runs"><tbody>${checks}</tbody></table>
+  <div class="cap" style="margin-top:8px">Overall lean: <b style="color:#c3ced6">${lean}</b>. This is a mechanical read of the checklist, not a recommendation.</div></div>
+ ${ex}${rot}
+ <div class="gs"><h4>How serious Indian breadth traders act on this</h4>
+  <table><tbody>
+   <tr><td>Regime sets exposure</td><td>Aggressive full, Normal standard, Defensive half, Stand aside cash</td></tr>
+   <tr><td>Only add on green checklist</td><td>Three or more greens before pressing new risk</td></tr>
+   <tr><td>Fish in leading sectors</td><td>Take breakouts where sector breadth &gt; 60%</td></tr>
+   <tr><td>Trim into froth</td><td>Ext &gt; 35% or 50%/month count &gt; 20: scale out, do not add</td></tr>
+   <tr><td>Buy washouts, not tops</td><td>Act on defensive extremes and Zweig thrusts; ignore bullish extremes as timing tools</td></tr>
+   <tr><td>Divergence tightens stops</td><td>Bear div is not a sell, it is a signal to raise stops on open longs</td></tr>
+  </tbody></table></div>`;}
+
+function referencePane(){document.getElementById('p-reference').innerHTML=`
+ <div class="gs"><h4>Primary sources on this methodology</h4><table><tbody>
+  <tr><td>Stockbee Market Monitor page</td><td>stockbee.blogspot.com/p/mm.html</td></tr>
+  <tr><td>Using breadth to avoid crashes (2011)</td><td>stockbee.blogspot.com/2011/08/how-to-use-market-breadth-to-avoid.html</td></tr>
+  <tr><td>Open-source implementation, backtested regimes</td><td>github.com/dcimring/stockbee-dashboard</td></tr>
+  <tr><td>Nitin R, Chartink build (your workbook&rsquo;s origin)</td><td>finallynitin.substack.com/p/stockbee-market-monitor</td></tr>
+  <tr><td>Bonde on edge (video)</td><td>Investors Underground, &ldquo;How to Find Your Edge with Pradeep Bonde&rdquo;</td></tr>
+  <tr><td>Martin Zweig, Breadth Thrust (book)</td><td>Winning on Wall Street</td></tr>
+  <tr><td>Stan Weinstein, 30-week stage analysis</td><td>Secrets for Profiting in Bull and Bear Markets</td></tr>
+ </tbody></table></div>
+ <div class="gs"><h4>The single most important idea</h4>
+  <dl><dd>Breadth is most useful at extremes and close to noise between them. The 5-day ratio reaching an extreme is the actionable event, not the day-to-day wiggle. There is an asymmetry worth burning in: extremely bearish breadth is a reliable bullish signal, while extremely bullish breadth has a poor record of calling tops, because tops are gradual and bottoms are violent. Use breadth to add risk after washouts and to trim risk gradually, never to time exits precisely.</dd></dl></div>
+ <div class="gs"><h4>India calibration, measured on this store</h4><table><tbody>
+  <tr><td>Daily sigma (all NSE)</td><td>2.82%</td></tr>
+  <tr><td>4% up movers, median day</td><td>4.9% of universe</td></tr>
+  <tr><td>Bonde&rsquo;s US thrust bar</td><td>4.2% &mdash; below the Indian median</td></tr>
+  <tr><td>India daily tier added</td><td>6% (fires 2.6% of days)</td></tr>
+  <tr><td>25%/month</td><td>transfers well (2.3%)</td></tr>
+  <tr><td>50%/month</td><td>transfers almost exactly (0.26% vs US 0.28%)</td></tr>
+  <tr><td>25%/quarter (US)</td><td>over-fires in India (5.6%)</td></tr>
+  <tr><td>India quarter tier added</td><td>35%/65d (3.1%)</td></tr>
+ </tbody></table>
+  <div class="cap">Thresholds calibrated on 589 sessions from Apr 2024, a predominantly rising sample. They will drift as a full correction enters the record; treat the ratio extremes as provisional until then.</div></div>`;}
+
 function guidePane(){document.getElementById('p-guide').innerHTML=`
- <div class="note"><b>The single most important idea.</b> Pradeep Bonde, whose Market Monitor this dashboard descends from,
-  is explicit that breadth is most useful at extremes and is close to noise between them. The 5-day ratio reaching an extreme is
-  the actionable event, not the day-to-day wiggle. He also notes an asymmetry worth remembering: extremely bearish breadth is a
-  reliable bullish signal, while extremely bullish breadth has a poor record of calling tops, because tops are gradual and bottoms
-  are violent. Use breadth to add risk after washouts and to trim risk gradually, not to time exits precisely.</div>
+ <div class="note"><b>Use breadth at extremes, not in the middle.</b> The 5-day ratio hitting an extreme is the event to act on. Extremely bearish breadth reliably marks bottoms; extremely bullish breadth does not reliably mark tops. Add risk after washouts, trim risk gradually.</div>
  <div class="gd">
- <div class="gs"><h4>India calibration, why the US numbers do not transfer</h4>
-  <dl><dd>Bonde's thresholds of 2.0 bullish and 0.5 bearish on the 5-day ratio were set on a US universe of roughly 7,200 common
-   stocks. The Indian EQ universe carries around 2,400 names, thousands of which are thin microcaps that clear 4% on trivial volume.
-   That gives the Indian ratio a structural upward bias: its median sits near 1.7, so a reading of 2.0 is an ordinary day, not a
-   signal. Every threshold below is calibrated on this dashboard's own history.</dd></dl>
-  <table>
-   <tr><td>5-day ratio, aggressive extreme</td><td>above 5.0</td></tr>
-   <tr><td>5-day ratio, neutral band</td><td>0.9 to 3.1</td></tr>
-   <tr><td>5-day ratio, defensive extreme</td><td>below 0.5</td></tr>
-   <tr><td>10-day ratio, aggressive</td><td>above 3.5</td></tr>
-   <tr><td>10-day ratio, defensive</td><td>below 0.7</td></tr>
-  </table></div>
- <div class="gs"><h4>Regime bands, % above 50 DMA</h4>
-  <table>
-   <tr><td>Broad uptrend</td><td>above 60</td></tr>
-   <tr><td>Narrowing uptrend</td><td>45 to 60</td></tr>
-   <tr><td>Corrective, mixed</td><td>25 to 45</td></tr>
-   <tr><td>Distribution</td><td>12 to 25</td></tr>
-   <tr><td>Washed out</td><td>below 12</td></tr>
-  </table>
-  <dl><dt>How to use</dt><dd>Regime sets position size, not direction. Broad uptrend supports full exposure and breakout entries.
-   Narrowing means keep positions but stop adding. Corrective means selective, smaller size. Distribution means defensive.
-   Washed out is where the best risk-reward entries appear, and it is also the hardest place to buy.</dd></dl></div>
- <div class="gs"><h4>Flags</h4>
-  <dl><dt>THRUST</dt><dd>At least 10% of the universe up 4% in one session, with at least three times as many 4% risers as fallers.
-   After a decline this is the classic signature of a durable low. Inside an established uptrend it means less.</dd>
-  <dt>BEAR DIV</dt><dd>The Nifty made a 20-session high but % above 50 DMA did not. Fewer stocks are carrying the index.
-   Not a sell signal on its own; it is a warning that raises the value of tight stops.</dd>
-  <dt>BULL DIV</dt><dd>The Nifty made a 20-session low but % above 50 DMA did not. Selling is concentrated in the index heavyweights
-   while the broad market is already repairing. Historically the more reliable of the two.</dd></dl></div>
- <div class="gs"><h4>Column glossary</h4>
-  <dl><dt>% above 10 / 20 / 50 / 200 DMA</dt><dd>Share of stocks trading above that simple moving average. 50 is the primary regime gauge.</dd>
-  <dt>Ext</dt><dd>Share of stocks more than 15% above their 50 DMA. A froth gauge, not a strength gauge. Readings above 30 mean the
-   move is stretched and pullback risk is elevated; very low readings during an advance mean the move still has room.</dd>
-  <dt>10&gt;20, 20&gt;50, 50&gt;200</dt><dd>Share of stocks whose shorter moving average sits above the longer. Slower and cleaner than
-   raw percent-above, because it ignores single-day noise.</dd>
-  <dt>52wH, 52wL, H/L</dt><dd>New 52-week highs and lows, and the ratio highs / (highs + lows). Above 0.85 is broad strength,
-   below 0.20 is broad weakness. The ratio is more useful than either raw count.</dd>
-  <dt>U4, D4, Net4</dt><dd>Stocks up or down 4% or more, close to close, and the difference. The daily pulse.</dd>
-  <dt>U10, D10</dt><dd>The same at a 10% threshold. Far rarer, so a cluster marks genuine dislocation rather than ordinary volatility.</dd>
-  <dt>R5, R10</dt><dd>Stockbee's primary ratios: five or ten sessions of 4% risers divided by the same window of 4% fallers.</dd>
-  <dt>U25m, D25m</dt><dd>Stocks moving 25% or more over 21 sessions, roughly a month.</dd>
-  <dt>U25q, D25q</dt><dd>The same over 63 sessions, a quarter. Bonde rates the quarterly version his single most important
-   indicator; a collapsing U25q count marks a deteriorating environment even while the index looks fine.</dd>
-  <dt>U20w, D20w</dt><dd>Stocks moving 20% or more in five sessions. The momentum-burst signal.</dd></dl></div>
- <div class="gs"><h4>Regime timeline, how to read it</h4>
-  <dl><dd>Each coloured block is a continuous run at one regime, with width proportional to its length. The value is in the pattern,
-   not any single block. Long uninterrupted blocks mean a trending market where breadth signals carry information and positions
-   can be held. Rapid alternation between narrow and corrective means a chopping market where every breadth signal will whipsaw you;
-   in that state the correct response is smaller size and shorter holding periods, not more analysis. Watch also for how quickly the
-   market moves from broad uptrend to corrective: fast transitions tend to resolve back upward, slow grinding ones tend not to.</dd></dl></div>
+ <div class="gs"><h4>Regime, action labels</h4><table><tbody>
+  <tr><td style="color:#2c8f57;font-weight:700">Aggressive</td><td>&ge;58% above 50 DMA, ratio &ge;1</td><td>Full size, buy breakouts freely</td></tr>
+  <tr><td style="color:#5b8f3f;font-weight:700">Normal</td><td>45&ndash;58% above 50 DMA</td><td>Standard size, be selective</td></tr>
+  <tr><td style="color:#9c7a30;font-weight:700">Defensive</td><td>25&ndash;45% above 50 DMA</td><td>Half size, tighten stops, leaders only</td></tr>
+  <tr><td style="color:#8f3a2c;font-weight:700">Stand aside</td><td>&lt;25%, no upturn</td><td>No new longs, protect capital</td></tr>
+  <tr><td style="color:#3f7a8a;font-weight:700">Recovery watch</td><td>&lt;12% but 5d ratio turning up</td><td>Scale in as thrust confirms</td></tr>
+ </tbody></table></div>
+ <div class="gs"><h4>India-calibrated ratio thresholds</h4><table><tbody>
+  <tr><td>5-day ratio, aggressive extreme</td><td>&ge; 5.0</td></tr>
+  <tr><td>5-day ratio, neutral band</td><td>0.9 &ndash; 3.1</td></tr>
+  <tr><td>5-day ratio, defensive extreme</td><td>&le; 0.5</td></tr>
+  <tr><td>10-day ratio, aggressive</td><td>&ge; 3.5</td></tr>
+  <tr><td>10-day ratio, defensive</td><td>&le; 0.7</td></tr>
+ </tbody></table>
+  <div class="cap">Bonde&rsquo;s US thresholds (2.0 / 0.5) do not transfer. The Indian 5-day median is 1.7 on a bull-heavy sample.</div></div>
+ <div class="gs"><h4>Bonde scaled count signals</h4><table><tbody>
+  <tr><td>Breadth thrust (fund buying)</td><td>~110 stocks up 4% on All NSE</td></tr>
+  <tr><td>Correction developing</td><td>~255 stocks down 4%, repeated</td></tr>
+  <tr><td>Seller capitulation</td><td>25%/quarter count very low</td></tr>
+  <tr><td>Top warning</td><td>&gt;20 stocks up 50% in a month</td></tr>
+ </tbody></table></div>
+ <div class="gs"><h4>Flags</h4><table><tbody>
+  <tr><td style="font-weight:700">ZWEIG</td><td>10-day advance ratio crosses 0.40 to 0.615 within 10 sessions. Rare, historically precedes major advances.</td></tr>
+  <tr><td style="font-weight:700">THRUST</td><td>&ge;10% of universe up 4%, and &ge;3&times; the down-4% count. Durable-low signature after declines.</td></tr>
+  <tr><td style="font-weight:700">BEAR DIV</td><td>Nifty 20-day high, % above 50 DMA not confirming. Raise stops, not a sell.</td></tr>
+  <tr><td style="font-weight:700">BULL DIV</td><td>Nifty 20-day low, % above 50 DMA not confirming. The more reliable of the two.</td></tr>
+ </tbody></table></div>
+ <div class="gs"><h4>Column glossary</h4><table><tbody>
+  <tr><td>% &gt;10/20/50/200 DMA</td><td>Share above that SMA. 50 is the regime gauge.</td></tr>
+  <tr><td>T2108</td><td>% above 40 DMA. Bonde&rsquo;s classic intermediate gauge.</td></tr>
+  <tr><td>Ext</td><td>% more than 15% above 50 DMA. Froth, not strength. &gt;30 is stretched.</td></tr>
+  <tr><td>10&gt;20, 20&gt;50, 50&gt;200</td><td>MA stacking. Cleaner than raw percent-above.</td></tr>
+  <tr><td>52wH/L, H/L</td><td>New highs, lows, and highs/(highs+lows). &gt;0.85 broad strength.</td></tr>
+  <tr><td>U4/D4/Net4</td><td>Up or down 4%+, close to close. The daily pulse.</td></tr>
+  <tr><td>U6/D6</td><td>6%+ tier, India-calibrated to match Bonde&rsquo;s US 4%.</td></tr>
+  <tr><td>U10/D10</td><td>10%+, genuine dislocation.</td></tr>
+  <tr><td>R5/R10</td><td>Stockbee ratios: 5 or 10 sessions of 4% up divided by 4% down.</td></tr>
+  <tr><td>U25m/U50m</td><td>25% and 50% moves over 21 sessions. 50m&gt;20 is a top warning.</td></tr>
+  <tr><td>U25q/U35q</td><td>25% (US) and 35% (India tier) over 65 sessions. Regime-defining.</td></tr>
+  <tr><td>U20w</td><td>20%+ in 5 sessions. Momentum burst.</td></tr>
+ </tbody></table></div>
  <div class="gs"><h4>Colour logic</h4>
-  <dl><dd>Fixed absolute thresholds, never percentiles. A percentile scale repaints itself as conditions change, which hides the
-   regime shifts this dashboard exists to reveal. Percentage columns are graded on 0 to 100 with tighter transitions around the
-   42 to 58 band where the regime call actually flips. Count columns are converted to a share of that day's universe first, so a
-   number means the same thing whether the universe holds 2,400 names or 2,600. Down-columns are inverted, so red always reads
-   bearish regardless of which column it sits in. Long stretches of mid-tone colour are the truth, not a fault in the scale.</dd></dl></div>
+  <dl><dd>Fixed absolute thresholds, never percentiles. Percentage columns graded 0&ndash;100 with tighter transitions across the 42&ndash;58 regime boundary. Counts converted to a share of the day&rsquo;s universe first, so a number means the same as the universe grows. Down-columns inverted, so red always reads bearish. Long mid-tone stretches are the truth, not a fault.</dd></dl></div>
+ <div class="gs"><h4>Regime timeline, how to read it</h4>
+  <dl><dd>Each block is a continuous run at one regime, width proportional to length. Long blocks mean a trend worth positioning behind; rapid alternation means a chopping market where signals whipsaw, so cut size and shorten holds. Fast moves from Aggressive to Defensive tend to resolve back up; slow grinds tend not to.</dd></dl></div>
  </div>`}
 
 /* ---- stock list overlay ---- */
@@ -723,11 +867,17 @@ async function show(iso,k){const o=document.getElementById('ov');
  document.getElementById('bs').textContent=`${iso}${s?' · '+s.length+' stocks':''}`}
 
 /* ---- draw ---- */
-function draw(){const d=DATA[U];if(!d)return;
+function draw(){const d=DATA[U];
+ if(TAB==='actions')return actionsPane();
+ if(TAB==='reference')return referencePane();
+ if(TAB==='guide')return guidePane();
+ if(TAB==='regime')return regimePane();
+ if(TAB==='compare')return comparePane();
+ if(TAB==='sectors')return sectorPane();
+ if(!d)return;
  if(TAB==='table'){pills(d);bars(d);obsP(d);body(d)}
- else if(TAB==='charts')chartPane();else if(TAB==='sectors')sectorPane();
- else if(TAB==='compare')comparePane();else if(TAB==='regime')regimePane();
- else if(TAB==='scanner')scannerPane();else if(TAB==='guide')guidePane()}
+ else if(TAB==='charts')chartPane();
+ else if(TAB==='scanner')scannerPane()}
 document.getElementById('rows').onchange=e=>{N=+e.target.value;body(DATA[U])};
 document.getElementById('ov').onclick=e=>{if(e.target.id==='ov')e.currentTarget.classList.remove('on')};
 document.getElementById('ft').innerHTML='Source: NSE UDiFF bhavcopy, series EQ. Prices chained on close over previous close, so splits and bonuses are adjusted. F&amp;O and index segments are point-in-time from NSE constituent files. Thresholds are calibrated on this dashboard&rsquo;s own Indian history, not imported from US studies. Research tooling, not investment advice.';
