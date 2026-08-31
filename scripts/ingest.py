@@ -76,11 +76,14 @@ HEADERS = {
 
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")
 EQ_SERIES = {"EQ"}
-MA_WINDOWS = [10, 20, 50, 200]
-UNIVERSES = (["ALL", "FNO", "NIFTY50", "NIFTYNEXT50", "MIDCAP150", "SMALLCAP250", "NIFTY500"]
+MA_WINDOWS = [10, 20, 40, 50, 200]   # 40 retained for T2108
+UNIVERSES = (["ALL", "LIQUID", "FNO", "NIFTY50", "NIFTYNEXT50", "MIDCAP150", "SMALLCAP250", "NIFTY500"]
              + list(SECTOR_CONSTITUENTS.keys()))
 EXTENDED_MULT = 1.15   # "extended" = adjusted close more than 15% above its 50 DMA
-QUARTER = 63           # sessions in a trading quarter
+QUARTER = 65           # Bonde uses 65 sessions, not 63
+# Liquidity filter, mirroring Bonde's own ($250k dollar volume plus a price floor).
+LIQ_TURNOVER_CR = 2.0  # rupees crore of traded value
+LIQ_PRICE = 20.0       # rupees
 
 
 # ---------------------------------------------------------------- download
@@ -305,14 +308,17 @@ def write_lists(lists, keep_days=90):
 
 def compute_breadth(prices, fno, idx, const) -> pd.DataFrame:
     p = adjusted_panel(prices)
+    p["liq"] = (p["turnover"] / 1e7 > LIQ_TURNOVER_CR) & (p["close"] > LIQ_PRICE)
     adj = p.pivot(index="date", columns="symbol", values="adj").sort_index()
     ret = p.pivot(index="date", columns="symbol", values="ret").sort_index()
     traded = adj.notna()
+    liqm = p.pivot(index="date", columns="symbol", values="liq").reindex(
+        index=adj.index, columns=adj.columns).fillna(False).astype(bool)
 
     ma = {w: adj.rolling(w, min_periods=w).mean() for w in MA_WINDOWS}
     r21 = adj / adj.shift(21) - 1
     r5 = adj / adj.shift(5) - 1
-    r63 = adj / adj.shift(QUARTER) - 1
+    r65 = adj / adj.shift(QUARTER) - 1
     ext50 = adj > (ma[50] * EXTENDED_MULT)
     hi52 = adj.rolling(250, min_periods=100).max()
     lo52 = adj.rolling(250, min_periods=100).min()
@@ -334,11 +340,13 @@ def compute_breadth(prices, fno, idx, const) -> pd.DataFrame:
 
     rows, lists = [], {}
     for universe in UNIVERSES:
-        if universe not in ("ALL", "FNO") and universe not in const_members:
+        if universe not in ("ALL", "LIQUID", "FNO") and universe not in const_members:
             continue
         for d in adj.index:
             live = traded.loc[d]
-            if universe == "FNO":
+            if universe == "LIQUID":
+                live = live & liqm.loc[d]
+            elif universe == "FNO":
                 if not fno_dates:
                     continue
                 asof = max([x for x in fno_dates if x <= d], default=None)
@@ -359,9 +367,14 @@ def compute_breadth(prices, fno, idx, const) -> pd.DataFrame:
                 "advances": int((r > 0).sum()), "declines": int((r < 0).sum()),
                 "unchanged": int((r == 0).sum()),
                 "up_4pct": int((r >= 0.04).sum()), "down_4pct": int((r <= -0.04).sum()),
+                "up_6pct": int((r >= 0.06).sum()), "down_6pct": int((r <= -0.06).sum()),
                 "up_10pct": int((r >= 0.10).sum()), "down_10pct": int((r <= -0.10).sum()),
-                "up_25pct_63d": int((r63.loc[d, cols] >= 0.25).sum()),
-                "down_25pct_63d": int((r63.loc[d, cols] <= -0.25).sum()),
+                "up_25pct_63d": int((r65.loc[d, cols] >= 0.25).sum()),
+                "down_25pct_63d": int((r65.loc[d, cols] <= -0.25).sum()),
+                "up_35pct_65d": int((r65.loc[d, cols] >= 0.35).sum()),
+                "down_35pct_65d": int((r65.loc[d, cols] <= -0.35).sum()),
+                "up_50pct_21d": int((r21.loc[d, cols] >= 0.50).sum()),
+                "down_50pct_21d": int((r21.loc[d, cols] <= -0.50).sum()),
                 "up_20pct_5d": int((r5.loc[d, cols] >= 0.20).sum()),
                 "down_20pct_5d": int((r5.loc[d, cols] <= -0.20).sum()),
                 "up_25pct_21d": int((r21.loc[d, cols] >= 0.25).sum()),
@@ -370,6 +383,8 @@ def compute_breadth(prices, fno, idx, const) -> pd.DataFrame:
                 "new_52w_low": int((adj.loc[d, cols] <= lo52.loc[d, cols] * 1.001).sum()),
             }
             row["net_4pct"] = row["up_4pct"] - row["down_4pct"]
+            row["net_6pct"] = row["up_6pct"] - row["down_6pct"]
+            row["adv_ratio"] = round(row["advances"] / n, 4) if n else np.nan
             e = ext50.loc[d, cols]
             ev = ma[50].loc[d, cols].notna()
             row["extended_50dma"] = int((e & ev).sum())
@@ -389,9 +404,14 @@ def compute_breadth(prices, fno, idx, const) -> pd.DataFrame:
                 "dn10": sorted(cols[(r <= -0.10).values]),
                 "up20_5d": sorted(cols[(r5.loc[d, cols] >= 0.20).values]),
                 "dn20_5d": sorted(cols[(r5.loc[d, cols] <= -0.20).values]),
-                "up25q": sorted(cols[(r63.loc[d, cols] >= 0.25).values]),
-                "dn25q": sorted(cols[(r63.loc[d, cols] <= -0.25).values]),
+                "up25q": sorted(cols[(r65.loc[d, cols] >= 0.25).values]),
+                "dn25q": sorted(cols[(r65.loc[d, cols] <= -0.25).values]),
                 "ext50": sorted(cols[(ext50.loc[d, cols] & ma[50].loc[d, cols].notna()).values]),
+                "up6": sorted(cols[(r >= 0.06).values]),
+                "dn6": sorted(cols[(r <= -0.06).values]),
+                "up35q": sorted(cols[(r65.loc[d, cols] >= 0.35).values]),
+                "dn35q": sorted(cols[(r65.loc[d, cols] <= -0.35).values]),
+                "up50m": sorted(cols[(r21.loc[d, cols] >= 0.50).values]),
             }
 
             for w in MA_WINDOWS:
@@ -399,6 +419,7 @@ def compute_breadth(prices, fno, idx, const) -> pd.DataFrame:
                 row[f"pct_above_{w}dma"] = round(float((adj.loc[d, cols][valid] > m[valid]).mean() * 100), 2) if valid.any() else np.nan
                 row[f"cover_{w}dma"] = int(valid.sum())
 
+            row["t2108"] = row.get("pct_above_40dma", np.nan)
             for a, b in [(10, 20), (20, 50), (50, 200)]:
                 if a in MA_WINDOWS and b in MA_WINDOWS:
                     x, y = ma[a].loc[d, cols], ma[b].loc[d, cols]
@@ -436,6 +457,12 @@ def add_divergence(b):
         g["ratio_10d"] = (g["up_4pct"].rolling(10, min_periods=10).sum()
                           / g["down_4pct"].rolling(10, min_periods=10).sum().clip(lower=1)).round(2)
         g["thrust"] = (g["up_4pct"] >= 0.10 * g["universe_count"]) & (g["up_4pct"] >= 3 * g["down_4pct"].clip(lower=1))
+        # Zweig Breadth Thrust: 10-session advance ratio moves from below 0.40 to above
+        # 0.615 within 10 sessions. Universe-size independent, and genuinely rare.
+        ar10 = g["adv_ratio"].rolling(10, min_periods=10).mean()
+        g["zweig_ar10"] = ar10.round(4)
+        below = (ar10 < 0.40).rolling(10, min_periods=1).max().astype(bool)
+        g["zweig"] = ((ar10 > 0.615) & below.shift(1).fillna(False)).fillna(False)
         out.append(g)
     return pd.concat(out, ignore_index=True)
 
