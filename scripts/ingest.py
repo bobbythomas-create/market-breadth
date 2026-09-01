@@ -34,6 +34,7 @@ import requests
 CM_URL = "https://nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_{d}_F_0000.csv.zip"
 FO_URL = "https://nsearchives.nseindia.com/content/fo/BhavCopy_NSE_FO_0_0_0_{d}_F_0000.csv.zip"
 IDX_URL = "https://nsearchives.nseindia.com/content/indices/ind_close_all_{d2}.csv"
+# ind_close_all carries Open/High/Low/Close per index, plus India VIX as an index row.
 MIRROR_CM = "https://raw.githubusercontent.com/chartiny/nse-cm-bhavcopy/master/{y}/nse-cm-bhavcopy-{iso}.csv"
 
 INDEX_CONSTITUENTS = {
@@ -129,12 +130,13 @@ def fetch_cm(sess, d: date, prefer_mirror=False):
         return status, None
     df.columns = [c.strip() for c in df.columns]
     df = df[(df["FinInstrmTp"] == "STK") & (df["SctySrs"].astype(str).str.strip().isin(EQ_SERIES))]
+    def num(col):
+        return pd.to_numeric(df[col], errors="coerce") if col in df.columns else np.nan
     out = pd.DataFrame({
         "date": pd.to_datetime(d), "symbol": df["TckrSymb"].astype(str).str.strip(),
-        "close": pd.to_numeric(df["ClsPric"], errors="coerce"),
-        "prev_close": pd.to_numeric(df["PrvsClsgPric"], errors="coerce"),
-        "volume": pd.to_numeric(df["TtlTradgVol"], errors="coerce"),
-        "turnover": pd.to_numeric(df["TtlTrfVal"], errors="coerce"),
+        "open": num("OpnPric"), "high": num("HghPric"), "low": num("LwPric"),
+        "close": num("ClsPric"), "prev_close": num("PrvsClsgPric"),
+        "volume": num("TtlTradgVol"), "turnover": num("TtlTrfVal"),
     })
     out = out.dropna(subset=["close", "prev_close"])
     out = out[(out["close"] > 0) & (out["prev_close"] > 0)]
@@ -151,23 +153,50 @@ def fetch_fno(sess, d: date):
     return pd.DataFrame({"date": pd.to_datetime(d), "symbol": syms})
 
 
+# indices we want OHLC for, in index_ohlc.parquet. Name must match ind_close_all exactly.
+OHLC_INDICES = {"NIFTY 50": "NIFTY50", "NIFTY BANK": "BANKNIFTY", "INDIA VIX": "INDIAVIX"}
+
+
 def fetch_index(sess, d: date):
+    """Returns (close_row_df, ohlc_df). close_row_df feeds breadth (per-segment close);
+    ohlc_df carries O/H/L/C for Nifty, Bank Nifty and India VIX for the trader view."""
     try:
         r = sess.get(IDX_URL.format(d2=d.strftime("%d%m%Y")), timeout=20)
         if r.status_code != 200:
-            return None
+            return None, None
         df = pd.read_csv(io.StringIO(r.text))
         df.columns = [c.strip() for c in df.columns]
         name_col = [c for c in df.columns if "Index Name" in c][0]
-        close_col = [c for c in df.columns if "Closing Index Value" in c][0]
+        def col(frag):
+            hit = [c for c in df.columns if frag.lower() in c.lower()]
+            return hit[0] if hit else None
+        cc, oc, hc, lc = col("Closing Index"), col("Open Index"), col("High Index"), col("Low Index")
+        up = df[name_col].astype(str).str.strip().str.upper()
+
         row = {"date": pd.to_datetime(d)}
-        for col_key, idx_name in INDEX_CLOSE_NAMES.items():
-            match = df[df[name_col].astype(str).str.strip().str.upper() == idx_name.upper()]
-            if not match.empty:
-                row[col_key] = float(match.iloc[0][close_col])
-        return pd.DataFrame([row]) if "nifty_close" in row else None
+        for ckey, iname in INDEX_CLOSE_NAMES.items():
+            m = df[up == iname.upper()]
+            if not m.empty and cc:
+                row[ckey] = float(m.iloc[0][cc])
+
+        ohlc = []
+        for iname, tag in OHLC_INDICES.items():
+            m = df[up == iname.upper()]
+            if m.empty:
+                continue
+            rec = {"date": pd.to_datetime(d), "index": tag}
+            for k, c in [("open", oc), ("high", hc), ("low", lc), ("close", cc)]:
+                if c:
+                    try:
+                        rec[k] = float(m.iloc[0][c])
+                    except Exception:
+                        rec[k] = np.nan
+            ohlc.append(rec)
+        cdf = pd.DataFrame([row]) if "nifty_close" in row else None
+        odf = pd.DataFrame(ohlc) if ohlc else None
+        return cdf, odf
     except Exception:
-        return None
+        return None, None
 
 
 def fetch_constituents(sess):
@@ -220,14 +249,14 @@ def _save(df, name):
 
 
 def update_store(start: date, end: date, max_days=0, prefer_mirror=False):
-    prices = _load("prices.parquet", ["date", "symbol", "close", "prev_close", "volume", "turnover"])
+    prices = _load("prices.parquet", ["date", "symbol", "open", "high", "low", "close", "prev_close", "volume", "turnover"])
     fno = _load("fno_universe.parquet", ["date", "symbol"])
     idx = _load("indices.parquet", ["date", "nifty_close"])
     have = set(pd.to_datetime(prices["date"]).dt.date) if len(prices) else set()
 
     sess = _session()
     d, added, blocked_streak = start, 0, 0
-    new_p, new_f, new_i = [], [], []
+    new_p, new_f, new_i, new_o = [], [], [], []
     while d <= end:
         if max_days and added >= max_days:
             print(f"reached --max-days {max_days}, stopping. Run again to continue.")
@@ -253,9 +282,11 @@ def update_store(start: date, end: date, max_days=0, prefer_mirror=False):
                 f = fetch_fno(sess, d)
                 if f is not None:
                     new_f.append(f)
-                i = fetch_index(sess, d)
+                i, o = fetch_index(sess, d)
                 if i is not None:
                     new_i.append(i)
+                if o is not None:
+                    new_o.append(o)
                 added += 1
                 print(f"{len(cm)} EQ symbols" + ("" if f is None else f", {len(f)} F&O"))
             time.sleep(0.4)
@@ -280,6 +311,10 @@ def update_store(start: date, end: date, max_days=0, prefer_mirror=False):
     if new_i:
         idx = pd.concat([idx] + new_i, ignore_index=True).drop_duplicates(["date"], keep="last")
         _save(idx.sort_values("date"), "indices.parquet")
+    if new_o:
+        oh = _load("index_ohlc.parquet", ["date", "index", "open", "high", "low", "close"])
+        oh = pd.concat([oh] + new_o, ignore_index=True).drop_duplicates(["date", "index"], keep="last")
+        _save(oh.sort_values(["index", "date"]), "index_ohlc.parquet")
     print(f"store: {added} new sessions, {prices['date'].nunique()} total sessions")
     return prices, fno, idx, const
 
