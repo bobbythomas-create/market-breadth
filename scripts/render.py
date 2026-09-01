@@ -312,29 +312,51 @@ def build_actionables(df, sizes):
     return a
 
 
-def sector_crossovers(df, sects, lookback=3):
-    """Detect recent MA-line crossovers per sector. A 10>50 upward cross = turning up;
-    a 10<50 downward cross = distribution starting. Returns compact records."""
+# crossover kinds: fast=10x20 (swing/trading), mid=10x50 (rotation), slow=50x200 (position/investing)
+CROSS_KINDS = [("fast", "pct_above_10dma", "pct_above_20dma"),
+               ("mid", "pct_above_10dma", "pct_above_50dma"),
+               ("slow", "pct_50dma_gt_200dma", None)]
+
+
+def sector_crossovers(df, pools, lookback=3):
+    """Recent MA-line crossovers per pool (sector or segment). Three kinds:
+    fast 10x20 (swing timing), mid 10x50 (rotation), slow 50x200 (position trend)."""
     out = []
-    for u in sects:
+    for u in pools:
         g = df[df.universe == u].sort_values("date")
         if len(g) < 6:
             continue
-        a10 = g["pct_above_10dma"].values
-        a50 = g["pct_above_50dma"].values
         dates = g["date"].values
-        for i in range(max(1, len(g) - lookback), len(g)):
-            if np.isnan(a10[i]) or np.isnan(a50[i]) or np.isnan(a10[i-1]) or np.isnan(a50[i-1]):
+        for kind, fast_col, slow_col in CROSS_KINDS:
+            if fast_col not in g.columns:
                 continue
-            up = a10[i-1] <= a50[i-1] and a10[i] > a50[i]
-            dn = a10[i-1] >= a50[i-1] and a10[i] < a50[i]
-            if up or dn:
-                out.append({"u": u, "label": ULBL.get(u, u),
-                            "dir": "up" if up else "dn",
-                            "when": pd.Timestamp(dates[i]).strftime("%d/%m"),
-                            "a10": round(float(a10[i]), 0), "a50": round(float(a50[i]), 0),
-                            "ago": len(g) - 1 - i})
-    # freshest first
+            if slow_col is None:
+                # slow: 50>200 line crossing the 50% mark (majority stacked bullish)
+                series = g[fast_col].values
+                for i in range(max(1, len(g) - lookback), len(g)):
+                    if np.isnan(series[i]) or np.isnan(series[i-1]):
+                        continue
+                    up = series[i-1] <= 50 and series[i] > 50
+                    dn = series[i-1] >= 50 and series[i] < 50
+                    if up or dn:
+                        out.append({"u": u, "label": ULBL.get(u, u), "kind": kind,
+                                    "dir": "up" if up else "dn",
+                                    "when": pd.Timestamp(dates[i]).strftime("%d/%m"),
+                                    "a": round(float(series[i]), 0), "b": 50,
+                                    "ago": len(g) - 1 - i})
+                continue
+            fa, sa = g[fast_col].values, g[slow_col].values
+            for i in range(max(1, len(g) - lookback), len(g)):
+                if np.isnan(fa[i]) or np.isnan(sa[i]) or np.isnan(fa[i-1]) or np.isnan(sa[i-1]):
+                    continue
+                up = fa[i-1] <= sa[i-1] and fa[i] > sa[i]
+                dn = fa[i-1] >= sa[i-1] and fa[i] < sa[i]
+                if up or dn:
+                    out.append({"u": u, "label": ULBL.get(u, u), "kind": kind,
+                                "dir": "up" if up else "dn",
+                                "when": pd.Timestamp(dates[i]).strftime("%d/%m"),
+                                "a": round(float(fa[i]), 0), "b": round(float(sa[i]), 0),
+                                "ago": len(g) - 1 - i})
     out.sort(key=lambda x: x["ago"])
     return out
 
@@ -347,6 +369,30 @@ def build(csv, out, rows, repo):
     lists = load_lists(os.path.dirname(os.path.abspath(csv)))
     stocks_path = os.path.join(os.path.dirname(os.path.abspath(csv)), "stocks.json")
     stocks = json.load(open(stocks_path)) if os.path.exists(stocks_path) else {}
+    fnoset = {}
+    fpath = os.path.join(os.path.dirname(os.path.abspath(csv)), "fno_universe.parquet")
+    if os.path.exists(fpath):
+        try:
+            fdf = pd.read_parquet(fpath)
+            fdf["date"] = pd.to_datetime(fdf["date"])
+            latest = fdf[fdf["date"] == fdf["date"].max()]
+            fnoset = {s: 1 for s in latest["symbol"].astype(str)}
+        except Exception:
+            pass
+    fw = {}
+    fwpath = os.path.join(os.path.dirname(os.path.abspath(csv)), "frameworks.json")
+    if os.path.exists(fwpath):
+        try:
+            fw = json.load(open(fwpath))
+        except Exception:
+            pass
+    trader = {}
+    tpath = os.path.join(os.path.dirname(os.path.abspath(csv)), "trader.json")
+    if os.path.exists(tpath):
+        try:
+            trader = json.load(open(tpath))
+        except Exception:
+            pass
 
     present = set(df["universe"].unique())
     sizes = [u for u in SIZE_UNIVERSES if u in present]
@@ -399,6 +445,7 @@ def build(csv, out, rows, repo):
     runs = regime_runs(df[df.universe == (sizes[0] if sizes else next(iter(present)))].sort_values("date"))
     actions = build_actionables(df, sizes)
     crossovers = sector_crossovers(df, sects)
+    seg_crossovers = sector_crossovers(df, [u for u in sizes if u not in ("ALL",)])
 
     html = (TEMPLATE
             .replace("__DATA__", json.dumps(payload, separators=(",", ":")))
@@ -413,7 +460,11 @@ def build(csv, out, rows, repo):
             .replace("__ULBL__", json.dumps(ULBL))
             .replace("__ACTIONS__", json.dumps(actions, separators=(",", ":")))
             .replace("__CROSS__", json.dumps(crossovers, separators=(",", ":")))
+            .replace("__SEGCROSS__", json.dumps(seg_crossovers, separators=(",", ":")))
             .replace("__STOCKS__", json.dumps(stocks, separators=(",", ":")))
+            .replace("__FNOSET__", json.dumps(fnoset, separators=(",", ":")))
+            .replace("__FW__", json.dumps(fw, separators=(",", ":")))
+            .replace("__TRADER__", json.dumps(trader, separators=(",", ":")))
             .replace("__REGSIZE__", json.dumps(REGIME_SIZE))
             .replace("__REPO__", repo or ""))
     with open(out, "w") as f:
@@ -565,6 +616,7 @@ canvas.gr{width:150px;height:10px;border-radius:2px}
 .sl{font-size:8.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);margin-right:3px}
 .sb{font-size:10.5px;padding:3px 9px;border:0;background:transparent;color:var(--dim);cursor:pointer;border-radius:3px;font-weight:600}
 .sb.on{background:var(--acc);color:#08110c}.sb:hover:not(.on){color:var(--ink)}
+.fno{color:#6f9fd8;font-size:10px;margin-left:4px;vertical-align:1px}
 .rbadge{font:11px/1 ui-sans-serif;font-weight:700;padding:4px 10px;border-radius:12px;letter-spacing:.03em;white-space:nowrap}
 .verdict{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;
  border:2px solid var(--rule);border-radius:4px;background:var(--pnl);padding:14px 18px;margin-bottom:9px}
@@ -590,6 +642,7 @@ footer{margin-top:9px;color:var(--dim);font-size:10px;line-height:1.55}
 <div class="tabs" id="tabs"></div>
 
 <div class="pane on" id="p-today"></div>
+<div class="pane" id="p-trader"></div>
 <div class="pane" id="p-screen"></div>
 <div class="pane" id="p-table">
   <div class="pills" id="pills"></div><div class="bars" id="bars"></div><div class="obs" id="obs"></div>
@@ -602,7 +655,7 @@ footer{margin-top:9px;color:var(--dim);font-size:10px;line-height:1.55}
 
 <div class="pane" id="p-charts"></div>
 <div class="pane" id="p-sectors"></div>
-<div class="pane" id="p-compare"></div>
+<div class="pane" id="p-segments"></div>
 <div class="pane" id="p-regime"></div>
 <div class="pane" id="p-scanner"></div>
 
@@ -615,7 +668,7 @@ footer{margin-top:9px;color:var(--dim);font-size:10px;line-height:1.55}
 <script>
 const KEYS=__KEYS__,KI={};__KEYS__.forEach((k,i)=>KI[k]=i);
 const DATA=__DATA__,SER=__SERIES__,RUNS=__RUNS__,GROUPS=__GROUPS__,NARROW=new Set(__NARROW__),
- LISTS=__LISTS__,SIZES=__SIZES__,SECTS=__SECTS__,ULBL=__ULBL__,REPO="__REPO__",ACTIONS=__ACTIONS__,REGSIZE=__REGSIZE__,CROSS=__CROSS__,STOCKS=__STOCKS__;
+ LISTS=__LISTS__,SIZES=__SIZES__,SECTS=__SECTS__,ULBL=__ULBL__,REPO="__REPO__",ACTIONS=__ACTIONS__,REGSIZE=__REGSIZE__,CROSS=__CROSS__,SEGCROSS=__SEGCROSS__,STOCKS=__STOCKS__,FNOSET=__FNOSET__,FW=__FW__,TRADER=__TRADER__;
 const LBL={up4:"up 4%+",dn4:"down 4%+",up10:"up 10%+",dn10:"down 10%+",hi52:"at a 52-week high",
  lo52:"at a 52-week low",up25:"up 25%+ in 21 sessions",dn25:"down 25%+ in 21 sessions",
  up25q:"up 25%+ in a quarter",dn25q:"down 25%+ in a quarter",up20_5d:"up 20%+ in 5 sessions",
@@ -643,10 +696,10 @@ const fmt=(k,v)=>v==null?'':k==='nifty_close'?v.toLocaleString('en-IN',{maximumF
 function usel(){const e=document.getElementById('usel');
  const list=(TAB==='sectors')?SECTS:SIZES;
  e.innerHTML=list.map(u=>`<div class="us" data-u="${u}" aria-selected="${u===U}">${ULBL[u]||u}</div>`).join('');
- e.style.display=(TAB==='today'||TAB==='screen'||TAB==='compare'||TAB==='guide'||TAB==='reference'||TAB==='regime'||TAB==='sectors')?'none':'flex';
+ e.style.display=(TAB==='today'||TAB==='trader'||TAB==='screen'||TAB==='segments'||TAB==='guide'||TAB==='reference'||TAB==='regime'||TAB==='sectors')?'none':'flex';
  e.querySelectorAll('.us').forEach(t=>t.onclick=()=>{U=t.dataset.u;usel();draw()})}
-const PRIMARY=[['today','Today'],['screen','Screen'],['table','Table'],['charts','Charts']];
-const MORE=[['sectors','Sectors'],['compare','Compare'],['regime','Regime'],['scanner','Scanner'],['guide','Guide'],['reference','Reference']];
+const PRIMARY=[['today','Today'],['trader','Trader'],['screen','Screen'],['table','Table'],['charts','Charts']];
+const MORE=[['sectors','Sectors'],['segments','Segments'],['regime','Regime'],['scanner','Scanner'],['guide','Guide'],['reference','Reference']];
 function selectTab(k){TAB=k;
  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='p-'+TAB));
  document.querySelectorAll('.tb').forEach(x=>x.setAttribute('aria-selected',x.dataset.t===k));
@@ -666,40 +719,107 @@ function tabs(){
 
 /* ---- table pane ---- */
 /* ---- screen ---- */
-let RSMODE='rsu',SCRSTRICT=true,SCRSEC='ALL';
+/* ---- trader ---- */
+let SQTAB='squeeze';let XKIND='all';
+function gaugeBar(pct,label,inv){if(pct==null)return `<div class="bg"><div class="bl">${label}</div><div class="bt"><div class="bv" style="right:auto;left:6px;color:var(--dim)">n/a</div></div></div>`;
+ const col=inv?(pct>=80?'#c2503c':pct<=20?'#3f9a63':'#9c9a30'):(pct>=80?'#3f9a63':pct<=20?'#c2503c':'#9c9a30');
+ return `<div class="bg"><div class="bl">${label}</div><div class="bt"><div class="bf" style="width:${pct}%;background:${col}"></div><div class="bv">${pct}%</div></div></div>`;}
+function traderPane(){const T=TRADER,el=document.getElementById('p-trader');
+ if(!T||!T.index){el.innerHTML='<div class="card"><h3>Trader</h3><div class="cap">trader.json not found. Run trader.py in the pipeline after ingest. VIX and index-squeeze signals need index_ohlc.parquet; stock squeeze needs the OHLC-widened price store (one backfill re-run).</div></div>';return}
+ const v=T.index.vix||{},ix=T.index.indices||[],fb=T.fno||{};
+ // VIX card
+ let ivState=v.ivrank==null?'':v.ivrank>=70?'RICH — sellers favoured':v.ivrank<=30?'CHEAP — buyers favoured':'MID';
+ let ivCol=v.ivrank==null?'var(--dim)':v.ivrank>=70?'#e07a63':v.ivrank<=30?'#6fd39a':'#c9a04a';
+ const hv=v.hv||{};
+ const vixCard=`<div class="card"><h3>India VIX &mdash; index options vol</h3>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:baseline;margin-bottom:9px">
+   <div><span style="font-size:24px;font-weight:800">${v.level??'--'}</span><span class="cap"> VIX level</span></div>
+   <div style="color:${ivCol};font-weight:700">${ivState}</div></div>
+  <div class="bars" style="border:0;padding:0;background:none;margin-bottom:8px">
+   ${gaugeBar(v.ivrank,'IV Rank (52wk)')}${gaugeBar(v.ivpctile,'IV Percentile')}</div>
+  <table class="runs"><tbody>
+   <tr><td>Realised vol 10d / 20d / 30d</td><td class="n">${hv['10']??'--'} / ${hv['20']??'--'} / ${hv['30']??'--'}%</td></tr>
+   <tr><td>Variance risk premium (VIX &minus; 30d HV)</td><td class="n" style="color:${v.vrp_30d>0?'#6fd39a':'#e07a63'}">${v.vrp_30d==null?'--':(v.vrp_30d>0?'+':'')+v.vrp_30d} ${v.vrp_pctile!=null?'('+v.vrp_pctile+' pctile)':''}</td></tr>
+   <tr><td>Expected move, 1 week (1&sigma;)</td><td class="n">${v.exp_move_1w_pct??'--'}%${v.exp_move_1w_pts?' &middot; '+v.exp_move_1w_pts+' pts':''}</td></tr>
+   ${v.divergence?'<tr><td style="color:#e07a63">VIX-Nifty divergence</td><td class="n" style="color:#e07a63">both rising &mdash; rally options distrust</td></tr>':''}
+  </tbody></table>
+  <div class="cap" style="margin-top:6px">IV Rank high = premium rich (favours selling); low = cheap (favours buying). VRP is context, not a standalone trigger. 30d HV is the VIX-matched window. <a class="jl" onclick="jump('reference')">method &rarr;</a></div></div>`;
+ // index squeeze cards
+ const idxCards=ix.map(i=>{const st=i.state,col=st==='squeeze'?'#c9a04a':st==='expansion'?'#3f9a63':'var(--dim)';
+  return `<div class="card" style="flex:1;min-width:200px"><h3>${i.label}</h3>
+   <div style="font-size:18px;font-weight:700;color:${col};text-transform:uppercase">${st}</div>
+   ${i.atr_pctile!=null?`<div class="cap">ATR percentile ${i.atr_pctile}% &middot; ${i.atr_pct}% of price</div>`:'<div class="cap">needs index OHLC (arrives after next run)</div>'}</div>`;}).join('');
+ // fno squeeze / events
+ const evRows=(fb.events||[]).map(e=>`<tr><td class="d">${e.s}${FNOSET&&FNOSET[e.s]?'':''}</td><td class="n" style="color:${e.chg>0?'#6fd39a':'#e07a63'}">${e.chg>0?'+':''}${e.chg}%</td><td class="n">${e.px}</td></tr>`).join('');
+ const sqRows=(fb.squeeze||[]).slice(0,30).map(x=>`<tr><td class="d">${x.s}</td><td class="n">${x.atr_pctile}%</td><td class="n">${x.atr_pct}%</td><td class="n">${x.px}</td><td class="n" style="color:${x.chg>0?'#6fd39a':'#e07a63'}">${x.chg>0?'+':''}${x.chg}</td></tr>`).join('');
+ const noOhlc=!fb.has_ohlc;
+ el.innerHTML=`
+ <div class="note">Volatility context for F&O. Every gauge here is a regime read, not a signal to enter. Confirm with your own chart, option chain and event calendar. Data ${T.asof||''}.</div>
+ ${vixCard}
+ <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:9px">${idxCards}</div>
+ <div class="card">
+  <div style="display:flex;gap:4px;margin-bottom:8px">
+   <button class="sb ${SQTAB==='squeeze'?'on':''}" onclick="SQTAB='squeeze';traderPane()">Squeeze scan</button>
+   <button class="sb ${SQTAB==='events'?'on':''}" onclick="SQTAB='events';traderPane()">&plusmn;8% events</button></div>
+  ${SQTAB==='squeeze'?(noOhlc?`<div class="cap">Stock squeeze scan needs the OHLC-widened price store. It activates one backfill re-run after you deploy the new ingest. Until then, index squeeze (above) and event movers work.</div>`
+    :`<div class="obs"><b>Most coiled F&O stocks</b><span>Lowest ATR percentile = tightest range = expansion setup loading</span></div>
+    <div class="tw" style="max-height:52vh"><table><thead><tr><th class="d">Symbol</th><th>ATR %ile</th><th>ATR%</th><th>Price</th><th>Day%</th></tr></thead><tbody>${sqRows}</tbody></table></div>`)
+   :(evRows?`<div class="obs"><b>Today&rsquo;s &plusmn;8% movers in F&O</b><span>Event-driven. Check the news before fading or chasing.</span></div>
+    <div class="tw"><table><thead><tr><th class="d">Symbol</th><th>Change</th><th>Price</th></tr></thead><tbody>${evRows}</tbody></table></div>`
+    :`<div class="cap">No F&O stock moved more than 8% today. On event-heavy days (results, news) this list populates.</div>`)}
+ </div>`;}
+
+let RSMODE='rsu',SCRSTRICT=true,SCRSEC='ALL',SCRFW=false,RSTYPE='rank';
+function fwList(sym){return (FW&&FW.map&&FW.map[sym])||[];}
+function fwCell(sym){const l=fwList(sym);if(!l.length)return '<span style="color:#4a5560">&mdash;</span>';
+ const col=l.length>=3?'#6fd39a':l.length>=2?'#c3d68a':'#9fb0bc';
+ return `<span style="color:${col}" title="${l.join(', ')}">${l.length>=2?'\u2605 ':''}${l.length} fw</span>`;}
 function screenPane(){const el=document.getElementById('p-screen');
  if(!STOCKS||!STOCKS.stocks){el.innerHTML='<div class="card"><h3>Stock screen</h3><div class="cap">stocks.json not found. Run screen.py in the pipeline after ingest to generate the Stage-2 / RS screen.</div></div>';return}
  const A=ACTIONS;
  const rsLabel={rsu:'vs Universe',rss:'vs Sector',rsn:'vs Nifty 50'};
  let rows=STOCKS.stocks.filter(x=>SCRSTRICT?x.strict:true);
+ if(SCRFW)rows=rows.filter(x=>fwList(x.s).length>0);
  // sector filter
  const secs=[...new Set(STOCKS.stocks.map(x=>x.sec).filter(Boolean))].sort();
  if(SCRSEC!=='ALL')rows=rows.filter(x=>x.sec===SCRSEC);
  // sort by chosen RS desc, nulls last
- rows=rows.slice().sort((a,b)=>{const av=a[RSMODE],bv=b[RSMODE];
+ const mkey={rsu:'mru',rss:'mrs',rsn:'mrn'}[RSMODE];
+ const getv=x=>RSTYPE==='mans'?(x[mkey]?x[mkey][0]:null):x[RSMODE];
+ rows=rows.slice().sort((a,b)=>{const av=getv(a),bv=getv(b);
   if(av==null&&bv==null)return 0;if(av==null)return 1;if(bv==null)return -1;return bv-av;});
  const cap=rows.length;rows=rows.slice(0,120);
  const stg={'2':'#3f9a63','1':'#9c9a30','3':'#d8875a','4':'#c2503c','?':'#5d6b63'};
  const rcell=v=>v==null?'<td class="nb">&mdash;</td>':`<td style="background:${clr(Math.max(0,Math.min(1,(v-1)/98)))};${(v<38||v>62)?'color:#e8eef2':''}">${v}</td>`;
+ const mcell=m=>{if(!m)return '<td class="nb">&mdash;</td>';const v=m[0],up=m[1]>0;
+  const col=v>0?(up?'#6fd39a':'#c3d68a'):(up?'#e8b979':'#e07a63');
+  return `<td class="nb" style="color:${col}" title="${up?'rising':'falling'}">${v>0?'+':''}${v.toFixed(0)}${up?'\u2191':'\u2193'}</td>`;};
  const body=rows.map(x=>`<tr>
-  <td class="d">${x.s}</td>
+  <td class="d">${x.s}${(typeof FNOSET!=='undefined'&&FNOSET[x.s])?'<span class="fno" title="F&O stock">&#8857;</span>':''}</td>
   <td class="fg">${x.sec||'&mdash;'}</td>
   <td style="color:${stg[x.stg]};font-weight:700">${x.stg}</td>
-  ${rcell(x.rsu)}${rcell(x.rss)}${rcell(x.rsn)}
-  <td>${x.fh==null?'':x.fh.toFixed(1)}</td>
-  <td>${x.fl==null?'':'+'+x.fl}</td>
-  <td>${x.px==null?'':x.px.toLocaleString('en-IN')}</td>
-  <td>${x.strict?'<span class="fl BULL">8/8</span>':x.pc+'/8'}</td></tr>`).join('');
+${RSTYPE==='mans'?(mcell(x.mru)+mcell(x.mrs)+mcell(x.mrn)):(rcell(x.rsu)+rcell(x.rss)+rcell(x.rsn))}
+  <td class="nb" style="color:${x.fh!=null&&x.fh>-8?'#7fd6a0':'#c3ced6'}">${x.fh==null?'':x.fh.toFixed(1)}</td>
+  <td class="nb">${x.fl==null?'':'+'+x.fl}</td>
+  <td class="nb">${x.px==null?'':x.px.toLocaleString('en-IN')}</td>
+  <td class="nb">${x.strict?'<span class="fl BULL">8/8</span>':'<span style="color:#9fb0bc">'+x.pc+'/8</span>'}</td>
+  <td class="nb" style="text-align:left">${fwCell(x.s)}</td></tr>`).join('');
  const marketNote=A&&(A.regime==='Stand aside'||A.regime==='Defensive')
   ?`<div class="note" style="border-color:#c2503c">Market regime is <b>${A.regime}</b>. O&rsquo;Neil, Minervini and Bonde all say the same thing: the best stock in a weak tape still fails. Treat this list as a watchlist, not a buy list, until the regime turns.</div>`
   :`<div class="note">Market regime is <b>${A?A.regime:'?'}</b>. Names below pass a Stage-2 trend template. Cross-check each against liquidity and your own fundamentals before acting.</div>`;
  el.innerHTML=`
  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center">
-  <div class="seg"><span class="sl">RS benchmark</span>
+  <div class="seg"><span class="sl">RS type</span>
+   <button class="sb ${RSTYPE==='rank'?'on':''}" onclick="RSTYPE='rank';screenPane()">Rank (IBD)</button>
+   <button class="sb ${RSTYPE==='mans'?'on':''}" onclick="RSTYPE='mans';screenPane()">Mansfield</button></div>
+  <div class="seg"><span class="sl">Benchmark</span>
    ${['rsu','rss','rsn'].map(m=>`<button class="sb ${RSMODE===m?'on':''}" onclick="RSMODE='${m}';screenPane()">${rsLabel[m]}</button>`).join('')}</div>
   <div class="seg"><span class="sl">Filter</span>
    <button class="sb ${SCRSTRICT?'on':''}" onclick="SCRSTRICT=true;screenPane()">Strict 8/8</button>
    <button class="sb ${!SCRSTRICT?'on':''}" onclick="SCRSTRICT=false;screenPane()">Relaxed</button></div>
+  <div class="seg"><span class="sl">Playbook</span>
+   <button class="sb ${!SCRFW?'on':''}" onclick="SCRFW=false;screenPane()">All</button>
+   <button class="sb ${SCRFW?'on':''}" onclick="SCRFW=true;screenPane()">In a framework</button></div>
   <select onchange="SCRSEC=this.value;screenPane()" style="margin-left:auto">
    <option value="ALL"${SCRSEC==='ALL'?' selected':''}>All sectors</option>
    ${secs.map(sc=>`<option value="${sc}"${SCRSEC===sc?' selected':''}>${sc}</option>`).join('')}</select>
@@ -709,13 +829,16 @@ function screenPane(){const el=document.getElementById('p-screen');
   <span>${STOCKS.n_strict} names pass strict Stage-2</span>
   <span>Universe with RS: ${STOCKS.universe}</span>
   <span>Showing ${rows.length} of ${cap} ${SCRSTRICT?'strict':'passing'}${SCRSEC!=='ALL'?' in '+SCRSEC:''}, ranked ${rsLabel[RSMODE]}</span>
-  <span>as of ${STOCKS.asof}</span></div>
+  <span>as of ${STOCKS.asof}</span>
+  ${(()=>{const c=STOCKS.stocks.filter(x=>x.strict&&fwList(x.s).length>0);return c.length?`<span style="color:#6fd39a">${c.length} strict names also in your Playbook</span>`:'';})()}</div>
  <div class="tw"><table><thead><tr>
   <th class="d">Symbol</th><th>Sector</th><th>Stg</th>
-  <th>RS-U</th><th>RS-Sec</th><th>RS-N50</th><th>% frm hi</th><th>% frm lo</th><th>Price</th><th>Template</th></tr></thead>
+<th>${RSTYPE==='mans'?'MR-U':'RS-U'}</th><th>${RSTYPE==='mans'?'MR-Sec':'RS-Sec'}</th><th>${RSTYPE==='mans'?'MR-N50':'RS-N50'}</th><th>% frm hi</th><th>% frm lo</th><th>Price</th><th>Template</th><th>Playbook</th></tr></thead>
   <tbody>${body}</tbody></table></div>
  <div class="cap" style="margin-top:6px">Stage: <span style="color:#3f9a63">2 advancing</span> &middot; <span style="color:#9c9a30">1 basing</span> &middot; <span style="color:#d8875a">3 topping</span> &middot; <span style="color:#c2503c">4 declining</span>.
   RS is a 1-99 percentile of weighted 3/6/12-month return. RS-Sec ranks within the stock&rsquo;s Nifty sector; blank means the stock is not in a tracked sector index.
+  Playbook column: how many of your framework screens the name appears in. &#9733; marks 2+, the multi-screen consensus. &#8857; on a symbol marks an F&O stock.
+  RS type: <b>Rank</b> is the IBD 1-99 percentile (O&rsquo;Neil/Minervini). <b>Mansfield</b> is Weinstein&rsquo;s benchmark-relative line: % above the stock&rsquo;s own 52-week ratio to the benchmark, with &#8593; rising / &#8595; falling. Positive and rising is the leadership zone; positive but falling is decelerating.
   <a class="jl" onclick="jump('reference')">method &amp; sources &rarr;</a></div>`;}
 
 function pills(d){const r=d.rows[0],p=[];
@@ -839,10 +962,15 @@ function sectorPane(){if(!SECTS.length){document.getElementById('p-sectors').inn
   const mk=XMAP[x.u]?`<span class="xmk ${XMAP[x.u]}">${XMAP[x.u]==='up'?'\u25b2':'\u25bc'}</span>`:'';
   return`<div class="cr"><span class="cn">${ULBL[x.u]}${mk}</span><div class="ct">
   <div class="cf" style="width:${v}%;background:${bc(v)}"></div></div><span class="cv">${v.toFixed(0)}%</span></div>`}).join('');};
- const ups=CROSS.filter(c=>c.dir==='up'),dns=CROSS.filter(c=>c.dir==='dn');
- const strip=CROSS.length?`<div class="xstrip">${CROSS.slice(0,8).map(c=>
-   `<span class="xchip ${c.dir}">${c.dir==='up'?'\u25b2':'\u25bc'} ${c.label} ${c.when}</span>`).join('')}</div>`
-   :`<div class="xstrip"><span style="color:var(--dim)">No fresh 10/50 DMA crossovers in the last 3 sessions</span></div>`;
+ const kindLbl={fast:'10\u00d720 fast',mid:'10\u00d750',slow:'50\u00d7200 slow'};
+ const cf=(typeof XKIND==='undefined')?'all':XKIND;
+ const cross=CROSS.filter(c=>cf==='all'||c.kind===cf);
+ const ups=cross.filter(c=>c.dir==='up'),dns=cross.filter(c=>c.dir==='dn');
+ const strip=`<div class="xstrip">
+   <span class="sl">Crossovers</span>
+   ${['all','fast','mid','slow'].map(k=>`<button class="sb ${cf===k?'on':''}" onclick="XKIND='${k}';sectorPane()">${k==='all'?'All':kindLbl[k]||k}</button>`).join('')}
+   ${cross.length?cross.slice(0,8).map(c=>`<span class="xchip ${c.dir}" title="${kindLbl[c.kind]||c.kind}">${c.dir==='up'?'\u25b2':'\u25bc'} ${c.label} <span style="opacity:.6">${kindLbl[c.kind]||''}</span> ${c.when}</span>`).join('')
+     :'<span style="color:var(--dim)">none in last 3 sessions</span>'}</div>`;
  const cbnobs=[];
  cbnobs.push(`<span>Lead 50 DMA: ${top}</span>`);
  cbnobs.push(`<span>Lag: ${bot}</span>`);
@@ -865,7 +993,9 @@ function sectorPane(){if(!SECTS.length){document.getElementById('p-sectors').inn
  <div class="note">Rotation read: work down the four panels from short to long. A sector high on 10/20 DMA but low on 50/200 is turning up and worth a watch. A sector still high on 50/200 but fading on 10/20 is where distribution starts. The cleanest longs sit where all four align.</div>`}
 
 /* ---- compare ---- */
-function comparePane(){const M=[['pct_above_50dma','% above 50 DMA'],['pct_above_200dma','% above 200 DMA'],
+function comparePane(){/* segments */
+ const segStrip=(typeof SEGCROSS!=='undefined'&&SEGCROSS.length)?`<div class="xstrip"><span class="sl">Segment crossovers</span>${SEGCROSS.slice(0,8).map(c=>{const kl={fast:'10\u00d720',mid:'10\u00d750',slow:'50\u00d7200'};return `<span class="xchip ${c.dir}">${c.dir==='up'?'\u25b2':'\u25bc'} ${c.label} <span style="opacity:.6">${kl[c.kind]||''}</span> ${c.when}</span>`;}).join('')}</div>`:'';
+ const M=[['pct_above_50dma','% above 50 DMA'],['pct_above_200dma','% above 200 DMA'],
   ['pct_above_10dma','% above 10 DMA'],['pct_50dma_gt_200dma','50 DMA above 200 DMA']];
  const get=(u,k)=>DATA[u]?gv(DATA[u].rows[0],k):null;
  const a=get('ALL','pct_above_50dma'),f=get('FNO','pct_above_50dma');
@@ -873,7 +1003,7 @@ function comparePane(){const M=[['pct_above_50dma','% above 50 DMA'],['pct_above
  const o=[];
  if(a!=null&&f!=null)o.push(`<span>Liquid F&amp;O basket vs full market on 50 DMA: ${f.toFixed(0)}% vs ${a.toFixed(0)}%, gap ${(f-a).toFixed(0)} pts</span>`);
  if(sm!=null&&n5!=null)o.push(`<span>Smallcap 250 vs Nifty 50: ${sm.toFixed(0)}% vs ${n5.toFixed(0)}%, ${sm>n5?'risk appetite broadening down the cap curve':'large caps holding better, defensive tilt'}</span>`);
- document.getElementById('p-compare').innerHTML=`<div class="obs"><b>Key observations</b>${o.join('')}</div>`+
+ document.getElementById('p-segments').innerHTML=`<div class="obs"><b>Key observations</b>${o.join('')}</div>`+segStrip+
  `<div class="grid2">`+M.map(([k,l])=>`<div class="card"><h3>${l}</h3>`+
   SIZES.map(u=>{const v=get(u,k);if(v==null)return'';
    return`<div class="cr"><span class="cn">${ULBL[u]}</span><div class="ct">
@@ -1109,10 +1239,11 @@ function draw(){const d=DATA[U];
  regimeBadge();
  if(TAB==='today')return todayPane();
  if(TAB==='screen')return screenPane();
+ if(TAB==='trader')return traderPane();
  if(TAB==='reference')return referencePane();
  if(TAB==='guide')return guidePane();
  if(TAB==='regime')return regimePane();
- if(TAB==='compare')return comparePane();
+ if(TAB==='segments')return comparePane();
  if(TAB==='sectors')return sectorPane();
  if(!d)return;
  if(TAB==='table'){pills(d);bars(d);obsP(d);body(d)}
