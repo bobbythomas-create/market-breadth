@@ -248,11 +248,11 @@ def _save(df, name):
     df.to_parquet(os.path.join(DATA, name), index=False)
 
 
-def update_store(start: date, end: date, max_days=0, prefer_mirror=False):
+def update_store(start: date, end: date, max_days=0, prefer_mirror=False, refetch=False):
     prices = _load("prices.parquet", ["date", "symbol", "open", "high", "low", "close", "prev_close", "volume", "turnover"])
     fno = _load("fno_universe.parquet", ["date", "symbol"])
     idx = _load("indices.parquet", ["date", "nifty_close"])
-    have = set(pd.to_datetime(prices["date"]).dt.date) if len(prices) else set()
+    have = set() if refetch else (set(pd.to_datetime(prices["date"]).dt.date) if len(prices) else set())
 
     sess = _session()
     d, added, blocked_streak = start, 0, 0
@@ -535,6 +535,7 @@ def main():
     ap.add_argument("--recompute", action="store_true")
     ap.add_argument("--max-days", type=int, default=120)
     ap.add_argument("--prefer-mirror", action="store_true")
+    ap.add_argument("--refetch", action="store_true", help="re-fetch and overwrite existing rows (use once to add OHLC to history)")
     a = ap.parse_args()
 
     end = datetime.strptime(a.end, "%Y-%m-%d").date() if a.end else date.today()
@@ -550,7 +551,7 @@ def main():
         else:
             ex = _load("prices.parquet", ["date"])
             start = (pd.to_datetime(ex["date"]).max().date() + timedelta(days=1)) if len(ex) else end - timedelta(days=400)
-        prices, fno, idx, const = update_store(start, end, a.max_days, a.prefer_mirror)
+        prices, fno, idx, const = update_store(start, end, a.max_days, a.prefer_mirror, a.refetch)
 
     if not len(prices):
         sys.exit("no price data in store")
