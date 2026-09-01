@@ -489,16 +489,18 @@ table.runs td.n{text-align:right;color:var(--dim)}
 .si b{display:block;color:var(--acc);font-size:11.5px}
 .si span{color:var(--dim);font-size:9.5px}
 /* guide */
-.gd{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:9px}
+.gd{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:9px}
 .gs{border:1px solid var(--rule);background:var(--pnl);border-radius:3px;padding:11px 13px}
 .gs h4{margin:0 0 7px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--acc);font-weight:650}
 .gs dl{margin:0;font-size:11.5px;line-height:1.6}
 .gs dt{font-weight:700;color:var(--ink);margin-top:7px}
 .gs dt:first-child{margin-top:0}
 .gs dd{margin:1px 0 0;color:#aab8c2}
-.gs table{width:100%;font-size:11px;font-family:inherit;margin-top:4px}
-.gs table td{color:#aab8c2;font-weight:400;padding:2.5px 5px;border-bottom:1px solid #202931;text-align:left}
-.gs table td:last-child{text-align:right;font-family:ui-monospace,Menlo,monospace;color:var(--ink)}
+.gs table{width:100%;font-size:11px;font-family:inherit;margin-top:4px;table-layout:fixed}
+.gs table td{color:#aab8c2;font-weight:400;padding:3px 6px;border-bottom:1px solid #202931;text-align:left;
+ vertical-align:top;word-break:break-word;overflow-wrap:anywhere;white-space:normal}
+.gs table td:first-child{color:var(--ink);width:34%}
+.gs table.two td:last-child{text-align:right;font-family:ui-monospace,Menlo,monospace;color:var(--ink);width:26%;white-space:nowrap}
 .note{border-left:2px solid var(--acc);padding:7px 11px;background:#141c19;font-size:11.5px;line-height:1.6;
  color:#c3ced6;margin:9px 0}
 /* overlay */
@@ -672,9 +674,11 @@ function sectorPane(){if(!SECTS.length){document.getElementById('p-sectors').inn
  const rank=SECTS.map(u=>({u,r:DATA[u]?DATA[u].rows[0]:null})).filter(x=>x.r)
   .sort((a,b)=>(gv(b.r,'pct_above_50dma')||0)-(gv(a.r,'pct_above_50dma')||0));
  const top=rank.slice(0,3).map(x=>ULBL[x.u]).join(', '),bot=rank.slice(-3).map(x=>ULBL[x.u]).join(', ');
- const rows=m=>rank.map(x=>{const v=gv(x.r,m);if(v==null)return'';
+ const rows=(m,sortSelf)=>{let R=rank;
+  if(sortSelf){R=rank.slice().sort((a,b)=>(gv(b.r,m)||0)-(gv(a.r,m)||0));}
+  return R.map(x=>{const v=gv(x.r,m);if(v==null)return'';
   return`<div class="cr"><span class="cn">${ULBL[x.u]}</span><div class="ct">
-  <div class="cf" style="width:${v}%;background:${bc(v)}"></div></div><span class="cv">${v.toFixed(0)}%</span></div>`}).join('');
+  <div class="cf" style="width:${v}%;background:${bc(v)}"></div></div><span class="cv">${v.toFixed(0)}%</span></div>`}).join('');};
  document.getElementById('p-sectors').innerHTML=`
  <div class="obs"><b>Key observations</b>
   <span>Leading on the 50 DMA: ${top}</span><span>Lagging: ${bot}</span>
@@ -684,8 +688,12 @@ function sectorPane(){if(!SECTS.length){document.getElementById('p-sectors').inn
    <div class="cap">Intermediate trend health. Sectors above 60 are participating; below 30 are being sold.</div></div>
   <div class="card"><h3>% above 200 DMA, by sector</h3>${rows('pct_above_200dma')}
    <div class="cap">Long-term structure. A sector strong here but weak on the 50 DMA is correcting inside an uptrend, which is where pullback entries live.</div></div></div>
- <div class="note">Rotation read: compare the two panels. A sector rising in the left panel while its 200 DMA reading holds is
-  the cleanest re-acceleration signal. A sector leading the left panel from a weak 200 DMA base is a bounce, not a trend.</div>`}
+ <div class="grid2" style="margin-top:9px">
+  <div class="card"><h3>% above 10 DMA, by sector &mdash; who is turning now</h3>${rows('pct_above_10dma','st')}
+   <div class="cap">Short-term momentum. Ranked the same way as the 50 DMA panel above, so a sector jumping up this list versus its 50 DMA rank is accelerating; slipping down is stalling. This is the earliest rotation tell.</div></div>
+  <div class="card"><h3>% above 20 DMA, by sector</h3>${rows('pct_above_20dma','st')}
+   <div class="cap">The bridge between the 10 and 50 DMA reads. A sector green on 10 and 20 but amber on 50 is in the first leg of a turn.</div></div></div>
+ <div class="note">Rotation read: work down the four panels from short to long. A sector high on 10/20 DMA but low on 50/200 is turning up and worth a watch. A sector still high on 50/200 but fading on 10/20 is where distribution starts. The cleanest longs sit where all four align.</div>`}
 
 /* ---- compare ---- */
 function comparePane(){const M=[['pct_above_50dma','% above 50 DMA'],['pct_above_200dma','% above 200 DMA'],
@@ -704,8 +712,7 @@ function comparePane(){const M=[['pct_above_50dma','% above 50 DMA'],['pct_above
   +`</div>`).join('')+`</div>`}
 
 /* ---- regime timeline ---- */
-function regimePane(){const RC={'broad uptrend':'#2c8f57','narrowing uptrend':'#5b8f3f','corrective, mixed':'#8a7a33',
-  'distribution':'#9c5730','washed out':'#8f3a2c','insufficient data':'#3a444d'};
+function regimePane(){const RC=RCOL;
  const tot=RUNS.reduce((s,r)=>s+r.n,0);
  const bar=RUNS.map(r=>`<div style="flex:${r.n};background:${RC[r.r]}" title="${r.r} · ${r.from} to ${r.to} · ${r.n} sessions"></div>`).join('');
  const cur=RUNS[RUNS.length-1];
@@ -718,7 +725,7 @@ function regimePane(){const RC={'broad uptrend':'#2c8f57','narrowing uptrend':'#
   <span>Longest run on record: ${longest.r}, ${longest.n} sessions</span>
   <span>${RUNS.length} regime changes across ${tot} sessions</span></div>
  <div class="card"><h3>Regime timeline &mdash; All NSE, oldest left</h3><div class="rt">${bar}</div>
-  <div class="rl">${Object.entries(RC).filter(([k])=>k!=='insufficient data').map(([k,v])=>`<span><i style="background:${v}"></i>${k}</span>`).join('')}</div>
+  <div class="rl">${Object.keys(RCOL).filter(k=>k!=='n/a').map(k=>`<span><i style="background:${RCOL[k]}"></i>${k}</span>`).join('')}</div>
   <div class="cap">Each block is a continuous run at one regime. Width is proportional to how long it lasted. Hover for dates.
    Short alternating blocks mean a chopping market where breadth signals are unreliable; long blocks mean a trend worth positioning behind.</div></div>
  <div class="card"><h3>Recent regime runs</h3><table class="runs">${tbl}</table></div>`}
@@ -780,7 +787,7 @@ function actionsPane(){const A=ACTIONS;const el=document.getElementById('p-actio
   </tbody></table></div>`;}
 
 function referencePane(){document.getElementById('p-reference').innerHTML=`
- <div class="gs"><h4>Primary sources on this methodology</h4><table><tbody>
+ <div class="gs"><h4>Primary sources on this methodology</h4><table class="two"><tbody>
   <tr><td>Stockbee Market Monitor page</td><td>stockbee.blogspot.com/p/mm.html</td></tr>
   <tr><td>Using breadth to avoid crashes (2011)</td><td>stockbee.blogspot.com/2011/08/how-to-use-market-breadth-to-avoid.html</td></tr>
   <tr><td>Open-source implementation, backtested regimes</td><td>github.com/dcimring/stockbee-dashboard</td></tr>
@@ -791,7 +798,7 @@ function referencePane(){document.getElementById('p-reference').innerHTML=`
  </tbody></table></div>
  <div class="gs"><h4>The single most important idea</h4>
   <dl><dd>Breadth is most useful at extremes and close to noise between them. The 5-day ratio reaching an extreme is the actionable event, not the day-to-day wiggle. There is an asymmetry worth burning in: extremely bearish breadth is a reliable bullish signal, while extremely bullish breadth has a poor record of calling tops, because tops are gradual and bottoms are violent. Use breadth to add risk after washouts and to trim risk gradually, never to time exits precisely.</dd></dl></div>
- <div class="gs"><h4>India calibration, measured on this store</h4><table><tbody>
+ <div class="gs"><h4>India calibration, measured on this store</h4><table class="two"><tbody>
   <tr><td>Daily sigma (all NSE)</td><td>2.82%</td></tr>
   <tr><td>4% up movers, median day</td><td>4.9% of universe</td></tr>
   <tr><td>Bonde&rsquo;s US thrust bar</td><td>4.2% &mdash; below the Indian median</td></tr>
@@ -801,7 +808,13 @@ function referencePane(){document.getElementById('p-reference').innerHTML=`
   <tr><td>25%/quarter (US)</td><td>over-fires in India (5.6%)</td></tr>
   <tr><td>India quarter tier added</td><td>35%/65d (3.1%)</td></tr>
  </tbody></table>
-  <div class="cap">Thresholds calibrated on 589 sessions from Apr 2024, a predominantly rising sample. They will drift as a full correction enters the record; treat the ratio extremes as provisional until then.</div></div>`;}
+  <div class="cap">Thresholds calibrated on 589 sessions from Apr 2024, a predominantly rising sample. They will drift as a full correction enters the record; treat the ratio extremes as provisional until then.</div></div>
+ <div class="gs"><h4>Momentum school: how breakout traders use this</h4>
+  <dl><dt>Qullamaggie, the market filter</dt><dd>His only top-down rule: when the 10-day and 20-day are sloping down and breakouts keep failing, go to cash or trade small. On this dashboard that is the % above 10 DMA and 20 DMA lines rolling over together, and the Net 4% bars turning persistently red. He does not trade breakouts into weak breadth.</dd>
+  <dt>Where he fishes</dt><dd>Only in leading groups. The Sectors tab, ranked by 10 and 20 DMA, is that filter. He buys the top 1-2% of performers surfing their 10/20 DMA, never below the 50 DMA, so a name in the Scanner tab tagged 52wH and up-in-5d, in a top-3 sector, is his archetype.</dd>
+  <dt>Episodic Pivots</dt><dd>Gap-ups above 10% on heavy volume after a catalyst. Your U10 column is the daily count of these; a rising U10 in a strong regime means EP setups are firing across the market.</dd>
+  <dt>Minervini, breadth confirmation</dt><dd>His Stage-2 template wants the broad market in a confirmed uptrend before pressing risk, and stacked moving averages (50 above 150 above 200) on individual names. The MA structure columns are the market-wide version of that stacking check.</dd>
+  <dt>Weinstein, the 30-week line</dt><dd>Stage analysis turns on the 30-week EMA. Not yet in the dashboard; flagged as the next addition. It would sit between the 50 and 200 DMA reads as the true intermediate stage gauge.</dd></dl></div>`;}
 
 function guidePane(){document.getElementById('p-guide').innerHTML=`
  <div class="note"><b>Use breadth at extremes, not in the middle.</b> The 5-day ratio hitting an extreme is the event to act on. Extremely bearish breadth reliably marks bottoms; extremely bullish breadth does not reliably mark tops. Add risk after washouts, trim risk gradually.</div>
@@ -813,7 +826,7 @@ function guidePane(){document.getElementById('p-guide').innerHTML=`
   <tr><td style="color:#8f3a2c;font-weight:700">Stand aside</td><td>&lt;25%, no upturn</td><td>No new longs, protect capital</td></tr>
   <tr><td style="color:#3f7a8a;font-weight:700">Recovery watch</td><td>&lt;12% but 5d ratio turning up</td><td>Scale in as thrust confirms</td></tr>
  </tbody></table></div>
- <div class="gs"><h4>India-calibrated ratio thresholds</h4><table><tbody>
+ <div class="gs"><h4>India-calibrated ratio thresholds</h4><table class="two"><tbody>
   <tr><td>5-day ratio, aggressive extreme</td><td>&ge; 5.0</td></tr>
   <tr><td>5-day ratio, neutral band</td><td>0.9 &ndash; 3.1</td></tr>
   <tr><td>5-day ratio, defensive extreme</td><td>&le; 0.5</td></tr>
@@ -821,7 +834,7 @@ function guidePane(){document.getElementById('p-guide').innerHTML=`
   <tr><td>10-day ratio, defensive</td><td>&le; 0.7</td></tr>
  </tbody></table>
   <div class="cap">Bonde&rsquo;s US thresholds (2.0 / 0.5) do not transfer. The Indian 5-day median is 1.7 on a bull-heavy sample.</div></div>
- <div class="gs"><h4>Bonde scaled count signals</h4><table><tbody>
+ <div class="gs"><h4>Bonde scaled count signals</h4><table class="two"><tbody>
   <tr><td>Breadth thrust (fund buying)</td><td>~110 stocks up 4% on All NSE</td></tr>
   <tr><td>Correction developing</td><td>~255 stocks down 4%, repeated</td></tr>
   <tr><td>Seller capitulation</td><td>25%/quarter count very low</td></tr>
