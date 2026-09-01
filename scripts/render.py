@@ -558,14 +558,32 @@ canvas.gr{width:150px;height:10px;border-radius:2px}
 .rtx span{position:absolute;top:0;white-space:nowrap}
 .jl{color:var(--acc);cursor:pointer;font-size:10px;text-decoration:underline;text-underline-offset:2px}
 .jl:hover{color:#6fd39a}
+.rbadge{font:11px/1 ui-sans-serif;font-weight:700;padding:4px 10px;border-radius:12px;letter-spacing:.03em;white-space:nowrap}
+.verdict{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;
+ border:2px solid var(--rule);border-radius:4px;background:var(--pnl);padding:14px 18px;margin-bottom:9px}
+.vlabel{font-size:26px;font-weight:800;letter-spacing:-.01em;line-height:1}
+.vsub{color:#c3ced6;font-size:12.5px;margin-top:4px}
+.vright{text-align:right}
+.vreg{font-size:17px;font-weight:700}
+.vmeta{color:var(--dim);font-size:10.5px;margin-top:2px;letter-spacing:.03em}
+.moredd{position:relative;display:inline-block}
+.mm{display:none;position:absolute;right:0;top:100%;margin-top:3px;background:var(--pnl);border:1px solid var(--rule);
+ border-radius:4px;z-index:8;min-width:130px;box-shadow:0 6px 16px rgba(0,0,0,.5);overflow:hidden}
+.mm.on{display:block}
+.mi{padding:7px 13px;font-size:11.5px;color:var(--dim);cursor:pointer;white-space:nowrap}
+.mi:hover{background:var(--pnl2);color:var(--ink)}
+@media(max-width:600px){.verdict{flex-direction:column;align-items:flex-start}.vright{text-align:left}}
 footer{margin-top:9px;color:var(--dim);font-size:10px;line-height:1.55}
 @media(max-width:760px){.pill{min-width:64px}.pill.reg{min-width:100%}.ct{max-width:180px}.cn{width:72px}}
 </style></head><body><div class="wrap">
 <div class="top"><div><h1>Market Breadth</h1><span class="as" id="as"></span></div>
-<div class="ctl" id="usel"></div></div>
+<div style="display:flex;gap:10px;align-items:center">
+<span class="rbadge" id="rbadge"></span>
+<div class="ctl" id="usel"></div></div></div>
 <div class="tabs" id="tabs"></div>
 
-<div class="pane on" id="p-table">
+<div class="pane on" id="p-today"></div>
+<div class="pane" id="p-table">
   <div class="pills" id="pills"></div><div class="bars" id="bars"></div><div class="obs" id="obs"></div>
   <div style="margin-bottom:7px"><select id="rows"><option value="60">60 sessions</option>
   <option value="120">120</option><option value="250" selected>250</option><option value="0">All</option></select></div>
@@ -579,7 +597,7 @@ footer{margin-top:9px;color:var(--dim);font-size:10px;line-height:1.55}
 <div class="pane" id="p-compare"></div>
 <div class="pane" id="p-regime"></div>
 <div class="pane" id="p-scanner"></div>
-<div class="pane" id="p-actions"></div>
+
 <div class="pane" id="p-guide"></div>
 <div class="pane" id="p-reference"></div>
 
@@ -594,7 +612,7 @@ const LBL={up4:"up 4%+",dn4:"down 4%+",up10:"up 10%+",dn10:"down 10%+",hi52:"at 
  lo52:"at a 52-week low",up25:"up 25%+ in 21 sessions",dn25:"down 25%+ in 21 sessions",
  up25q:"up 25%+ in a quarter",dn25q:"down 25%+ in a quarter",up20_5d:"up 20%+ in 5 sessions",
  dn20_5d:"down 20%+ in 5 sessions",ext50:"more than 15% above its 50 DMA"};
-let U=SIZES[0]||SECTS[0],N=250,TAB="table",CHW=520;
+let U=SIZES[0]||SECTS[0],N=250,TAB="today",CHW=520;
 const RCOL={"Aggressive":"#2c8f57","Normal":"#5b8f3f","Defensive":"#9c7a30","Stand aside":"#8f3a2c","Recovery watch":"#3f7a8a","n/a":"#3a444d"};
 const D_=0,WD_=1,N_=2,F_=3,V_=4,C_=5,ISO_=6;
 const gv=(r,k)=>{const i=KI[k];return i==null?null:r[V_][i]};
@@ -617,16 +635,26 @@ const fmt=(k,v)=>v==null?'':k==='nifty_close'?v.toLocaleString('en-IN',{maximumF
 function usel(){const e=document.getElementById('usel');
  const list=(TAB==='sectors')?SECTS:SIZES;
  e.innerHTML=list.map(u=>`<div class="us" data-u="${u}" aria-selected="${u===U}">${ULBL[u]||u}</div>`).join('');
- e.style.display=(TAB==='compare'||TAB==='guide'||TAB==='reference'||TAB==='actions'||TAB==='regime'||TAB==='sectors')?'none':'flex';
+ e.style.display=(TAB==='today'||TAB==='compare'||TAB==='guide'||TAB==='reference'||TAB==='regime'||TAB==='sectors')?'none':'flex';
  e.querySelectorAll('.us').forEach(t=>t.onclick=()=>{U=t.dataset.u;usel();draw()})}
-function tabs(){const T=[['table','Table'],['charts','Charts'],['sectors','Sectors'],['compare','Compare'],['actions','Actionables'],
- ['regime','Regime'],['scanner','Scanner'],['guide','Guide'],['reference','Reference']];
- document.getElementById('tabs').innerHTML=T.map(([k,l])=>
-  `<div class="tb" data-t="${k}" aria-selected="${k===TAB}">${l}</div>`).join('');
- document.querySelectorAll('.tb').forEach(t=>t.onclick=()=>{TAB=t.dataset.t;
-  document.querySelectorAll('.tb').forEach(x=>x.setAttribute('aria-selected',x===t));
-  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='p-'+TAB));
-  usel();draw()})}
+const PRIMARY=[['today','Today'],['table','Table'],['charts','Charts']];
+const MORE=[['sectors','Sectors'],['compare','Compare'],['regime','Regime'],['scanner','Scanner'],['guide','Guide'],['reference','Reference']];
+function selectTab(k){TAB=k;
+ document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='p-'+TAB));
+ document.querySelectorAll('.tb').forEach(x=>x.setAttribute('aria-selected',x.dataset.t===k));
+ const md=document.getElementById('moreBtn');if(md)md.setAttribute('aria-selected',MORE.some(([mk])=>mk===k));
+ usel();draw();}
+function tabs(){
+ const prim=PRIMARY.map(([k,l])=>`<div class="tb" data-t="${k}" aria-selected="${k===TAB}">${l}</div>`).join('');
+ const moreItems=MORE.map(([k,l])=>`<div class="mi" data-t="${k}">${l}</div>`).join('');
+ document.getElementById('tabs').innerHTML=prim+
+  `<div class="moredd"><div class="tb" id="moreBtn" aria-selected="false">More \u25be</div>
+   <div class="mm" id="moreMenu">${moreItems}</div></div>`;
+ document.querySelectorAll('.tb[data-t]').forEach(t=>t.onclick=()=>selectTab(t.dataset.t));
+ const mb=document.getElementById('moreBtn'),mm=document.getElementById('moreMenu');
+ mb.onclick=e=>{e.stopPropagation();mm.classList.toggle('on')};
+ document.querySelectorAll('.mi').forEach(m=>m.onclick=()=>{mm.classList.remove('on');selectTab(m.dataset.t)});
+ document.addEventListener('click',()=>mm.classList.remove('on'));}
 
 /* ---- table pane ---- */
 function pills(d){const r=d.rows[0],p=[];
@@ -850,8 +878,21 @@ function scannerPane(){const d=DATA[U],iso=d.rows[0][ISO_],L=LISTS[iso]&&LISTS[i
    false positives in distribution.</div></div>`}
 
 /* ---- guide ---- */
-function actionsPane(){const A=ACTIONS;const el=document.getElementById('p-actions');
- if(!A||!A.checks){el.innerHTML='<div class="card"><h3>Actionables</h3><div class="cap">No data.</div></div>';return}
+function verdict(A,greens,reds){
+ const r=A.regime;
+ if(r==='Aggressive')return['PRESS','#3f9a63','Full size. Buy breakouts in leading sectors.'];
+ if(r==='Recovery watch')return['SCALE IN','#3f7a8a','Washout turning up. Add as thrust confirms.'];
+ if(r==='Stand aside')return['STAND ASIDE','#c2503c','No new longs. Protect capital.'];
+ if(r==='Defensive')return['TRIM','#d8875a','Half size. Tighten stops. Leaders only.'];
+ // Normal: tilt by checklist
+ if(greens>=reds*2)return['HOLD, LEAN LONG','#5b8f3f','Standard size. Selective new risk on greens.'];
+ if(reds>greens)return['HOLD, DEFENSIVE','#d8875a','Standard-to-half size. Wait for confirmation.'];
+ return['HOLD','#9c9a30','Standard size. Be selective.'];}
+function regimeBadge(){const A=ACTIONS;const b=document.getElementById('rbadge');if(!b||!A)return;
+ b.textContent=A.regime;b.style.background=RCOL[A.regime]||'#3a444d';
+ b.style.color=(A.regime==='Normal'||A.regime==='Defensive')?'#1a1205':'#08110c';}
+function todayPane(){const A=ACTIONS;const el=document.getElementById('p-today');
+ if(!A||!A.checks){el.innerHTML='<div class="card"><h3>Today</h3><div class="cap">No data.</div></div>';return}
  const dot=s=>`<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${s==='green'?'#3f9a63':s==='amber'?'#d8b34a':'#c2503c'};margin-right:7px;vertical-align:0"></span>`;
  const checks=A.checks.map(c=>`<tr><td style="width:22px">${dot(c.s)}</td><td style="font-weight:600">${c.k}</td><td style="color:#aab8c2">${c.d}</td></tr>`).join('');
  const greens=A.checks.filter(c=>c.s==='green').length,reds=A.checks.filter(c=>c.s==='red').length;
@@ -863,14 +904,31 @@ function actionsPane(){const A=ACTIONS;const el=document.getElementById('p-actio
    <div class="cr"><span class="cn" style="color:#e07a63">Lagging</span><span style="color:#aab8c2">${A.rotation.lag.map(x=>x[0]+' '+x[1].toFixed(0)+'%').join(' &middot; ')}</span></div>
    <div class="cap">Momentum setups work best in leading sectors. Avoid fighting the laggards even with a good stock thesis; breadth is against you there.</div></div>`;}
  const ex=A.extremes&&A.extremes.length?`<div class="note">${A.extremes.join('<br>')}</div>`:'';
+ const [vw,vc,vs]=verdict(A,greens,reds);
+ // live flags from latest primary row
+ const pr=DATA[A.primary==='Liquid'?'LIQUID':'ALL'];
+ const flags=pr?pr.rows[0][F_]:[];
+ const flagHtml=flags.length?flags.map(f=>`<span class="fl ${f.split(' ')[0]}">${f}</span>`).join(' '):'<span style="color:var(--dim)">none</span>';
+ // crossovers
+ const ups=(typeof CROSS!=='undefined'?CROSS:[]).filter(c=>c.dir==='up'),dns=(typeof CROSS!=='undefined'?CROSS:[]).filter(c=>c.dir==='dn');
  el.innerHTML=`
- <div class="card"><h3>Today&rsquo;s read &mdash; ${A.primary}</h3>
-  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-   <span style="font-size:20px;font-weight:700;color:${RCOL[A.regime]}">${A.regime}</span>
-   <span style="color:#aab8c2;font-size:12px">${A.size}</span></div>
-  <table class="runs"><tbody>${checks}</tbody></table>
-  <div class="cap" style="margin-top:8px">Overall lean: <b style="color:#c3ced6">${lean}</b>. This is a mechanical read of the checklist, not a recommendation.</div></div>
- ${ex}${rot}
+ <div class="verdict" style="border-color:${vc}">
+  <div class="vleft"><div class="vlabel" style="color:${vc}">${vw}</div>
+   <div class="vsub">${vs}</div></div>
+  <div class="vright"><div class="vreg" style="color:${RCOL[A.regime]}">${A.regime}</div>
+   <div class="vmeta">${A.primary} &middot; ${greens} green / ${reds} red checks</div></div></div>
+ ${ex}
+ <div class="grid2">
+  <div class="card"><h3>Checklist</h3><table class="runs"><tbody>${checks}</tbody></table>
+   <div class="cap" style="margin-top:6px">Mechanical read, not a recommendation. <a class="jl" onclick="jump('guide')">what do these mean? &rarr;</a></div></div>
+  <div class="card"><h3>Sector rotation &amp; flags</h3>
+   ${A.rotation&&A.rotation.lead?`<div class="cr"><span class="cn" style="color:#5cc287">Fish here</span><span style="color:#aab8c2">${A.rotation.lead.map(x=>x[0]+' '+x[1].toFixed(0)+'%').join(' &middot; ')}</span></div>
+   <div class="cr"><span class="cn" style="color:#e07a63">Avoid</span><span style="color:#aab8c2">${A.rotation.lag.map(x=>x[0]+' '+x[1].toFixed(0)+'%').join(' &middot; ')}</span></div>`:''}
+   ${ups.length?`<div class="cr"><span class="cn" style="color:#5cc287">Turning up</span><span style="color:#aab8c2">${ups.map(c=>c.label).join(', ')}</span></div>`:''}
+   ${dns.length?`<div class="cr"><span class="cn" style="color:#e07a63">Rolling over</span><span style="color:#aab8c2">${dns.map(c=>c.label).join(', ')}</span></div>`:''}
+   <div class="cr"><span class="cn">Live flags</span><span>${flagHtml}</span></div>
+   <div class="cap" style="margin-top:6px"><a class="jl" onclick="jump('sectors')">full sector view &rarr;</a> &nbsp; <a class="jl" onclick="jump('scanner')">momentum scanner &rarr;</a></div></div>
+ </div>
  <div class="gs"><h4>How serious Indian breadth traders act on this</h4>
   <table><tbody>
    <tr><td>Regime sets exposure</td><td>Aggressive full, Normal standard, Defensive half, Stand aside cash &nbsp;<a class="jl" onclick="jump('regime')">Regime &rarr;</a></td></tr>
@@ -984,9 +1042,10 @@ async function show(iso,k){const o=document.getElementById('ov');
  document.getElementById('bs').textContent=`${iso}${s?' · '+s.length+' stocks':''}`}
 
 /* ---- draw ---- */
-function jump(t){const tb=document.querySelector('.tb[data-t='+t+']');if(tb)tb.dispatchEvent(new MouseEvent('click',{bubbles:true}));}
+function jump(t){selectTab(t);}
 function draw(){const d=DATA[U];
- if(TAB==='actions')return actionsPane();
+ regimeBadge();
+ if(TAB==='today')return todayPane();
  if(TAB==='reference')return referencePane();
  if(TAB==='guide')return guidePane();
  if(TAB==='regime')return regimePane();
