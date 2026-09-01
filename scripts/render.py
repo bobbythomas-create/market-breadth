@@ -345,6 +345,8 @@ def build(csv, out, rows, repo):
     if "pct_20dma_gt_40dma" in df.columns and "pct_20dma_gt_50dma" not in df.columns:
         df["pct_20dma_gt_50dma"] = df["pct_20dma_gt_40dma"]
     lists = load_lists(os.path.dirname(os.path.abspath(csv)))
+    stocks_path = os.path.join(os.path.dirname(os.path.abspath(csv)), "stocks.json")
+    stocks = json.load(open(stocks_path)) if os.path.exists(stocks_path) else {}
 
     present = set(df["universe"].unique())
     sizes = [u for u in SIZE_UNIVERSES if u in present]
@@ -411,6 +413,7 @@ def build(csv, out, rows, repo):
             .replace("__ULBL__", json.dumps(ULBL))
             .replace("__ACTIONS__", json.dumps(actions, separators=(",", ":")))
             .replace("__CROSS__", json.dumps(crossovers, separators=(",", ":")))
+            .replace("__STOCKS__", json.dumps(stocks, separators=(",", ":")))
             .replace("__REGSIZE__", json.dumps(REGIME_SIZE))
             .replace("__REPO__", repo or ""))
     with open(out, "w") as f:
@@ -558,6 +561,10 @@ canvas.gr{width:150px;height:10px;border-radius:2px}
 .rtx span{position:absolute;top:0;white-space:nowrap}
 .jl{color:var(--acc);cursor:pointer;font-size:10px;text-decoration:underline;text-underline-offset:2px}
 .jl:hover{color:#6fd39a}
+.seg{display:inline-flex;align-items:center;gap:3px;border:1px solid var(--rule);border-radius:4px;padding:3px 5px;background:var(--pnl)}
+.sl{font-size:8.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);margin-right:3px}
+.sb{font-size:10.5px;padding:3px 9px;border:0;background:transparent;color:var(--dim);cursor:pointer;border-radius:3px;font-weight:600}
+.sb.on{background:var(--acc);color:#08110c}.sb:hover:not(.on){color:var(--ink)}
 .rbadge{font:11px/1 ui-sans-serif;font-weight:700;padding:4px 10px;border-radius:12px;letter-spacing:.03em;white-space:nowrap}
 .verdict{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;
  border:2px solid var(--rule);border-radius:4px;background:var(--pnl);padding:14px 18px;margin-bottom:9px}
@@ -583,6 +590,7 @@ footer{margin-top:9px;color:var(--dim);font-size:10px;line-height:1.55}
 <div class="tabs" id="tabs"></div>
 
 <div class="pane on" id="p-today"></div>
+<div class="pane" id="p-screen"></div>
 <div class="pane" id="p-table">
   <div class="pills" id="pills"></div><div class="bars" id="bars"></div><div class="obs" id="obs"></div>
   <div style="margin-bottom:7px"><select id="rows"><option value="60">60 sessions</option>
@@ -607,7 +615,7 @@ footer{margin-top:9px;color:var(--dim);font-size:10px;line-height:1.55}
 <script>
 const KEYS=__KEYS__,KI={};__KEYS__.forEach((k,i)=>KI[k]=i);
 const DATA=__DATA__,SER=__SERIES__,RUNS=__RUNS__,GROUPS=__GROUPS__,NARROW=new Set(__NARROW__),
- LISTS=__LISTS__,SIZES=__SIZES__,SECTS=__SECTS__,ULBL=__ULBL__,REPO="__REPO__",ACTIONS=__ACTIONS__,REGSIZE=__REGSIZE__,CROSS=__CROSS__;
+ LISTS=__LISTS__,SIZES=__SIZES__,SECTS=__SECTS__,ULBL=__ULBL__,REPO="__REPO__",ACTIONS=__ACTIONS__,REGSIZE=__REGSIZE__,CROSS=__CROSS__,STOCKS=__STOCKS__;
 const LBL={up4:"up 4%+",dn4:"down 4%+",up10:"up 10%+",dn10:"down 10%+",hi52:"at a 52-week high",
  lo52:"at a 52-week low",up25:"up 25%+ in 21 sessions",dn25:"down 25%+ in 21 sessions",
  up25q:"up 25%+ in a quarter",dn25q:"down 25%+ in a quarter",up20_5d:"up 20%+ in 5 sessions",
@@ -635,9 +643,9 @@ const fmt=(k,v)=>v==null?'':k==='nifty_close'?v.toLocaleString('en-IN',{maximumF
 function usel(){const e=document.getElementById('usel');
  const list=(TAB==='sectors')?SECTS:SIZES;
  e.innerHTML=list.map(u=>`<div class="us" data-u="${u}" aria-selected="${u===U}">${ULBL[u]||u}</div>`).join('');
- e.style.display=(TAB==='today'||TAB==='compare'||TAB==='guide'||TAB==='reference'||TAB==='regime'||TAB==='sectors')?'none':'flex';
+ e.style.display=(TAB==='today'||TAB==='screen'||TAB==='compare'||TAB==='guide'||TAB==='reference'||TAB==='regime'||TAB==='sectors')?'none':'flex';
  e.querySelectorAll('.us').forEach(t=>t.onclick=()=>{U=t.dataset.u;usel();draw()})}
-const PRIMARY=[['today','Today'],['table','Table'],['charts','Charts']];
+const PRIMARY=[['today','Today'],['screen','Screen'],['table','Table'],['charts','Charts']];
 const MORE=[['sectors','Sectors'],['compare','Compare'],['regime','Regime'],['scanner','Scanner'],['guide','Guide'],['reference','Reference']];
 function selectTab(k){TAB=k;
  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='p-'+TAB));
@@ -657,6 +665,59 @@ function tabs(){
  document.addEventListener('click',()=>mm.classList.remove('on'));}
 
 /* ---- table pane ---- */
+/* ---- screen ---- */
+let RSMODE='rsu',SCRSTRICT=true,SCRSEC='ALL';
+function screenPane(){const el=document.getElementById('p-screen');
+ if(!STOCKS||!STOCKS.stocks){el.innerHTML='<div class="card"><h3>Stock screen</h3><div class="cap">stocks.json not found. Run screen.py in the pipeline after ingest to generate the Stage-2 / RS screen.</div></div>';return}
+ const A=ACTIONS;
+ const rsLabel={rsu:'vs Universe',rss:'vs Sector',rsn:'vs Nifty 50'};
+ let rows=STOCKS.stocks.filter(x=>SCRSTRICT?x.strict:true);
+ // sector filter
+ const secs=[...new Set(STOCKS.stocks.map(x=>x.sec).filter(Boolean))].sort();
+ if(SCRSEC!=='ALL')rows=rows.filter(x=>x.sec===SCRSEC);
+ // sort by chosen RS desc, nulls last
+ rows=rows.slice().sort((a,b)=>{const av=a[RSMODE],bv=b[RSMODE];
+  if(av==null&&bv==null)return 0;if(av==null)return 1;if(bv==null)return -1;return bv-av;});
+ const cap=rows.length;rows=rows.slice(0,120);
+ const stg={'2':'#3f9a63','1':'#9c9a30','3':'#d8875a','4':'#c2503c','?':'#5d6b63'};
+ const rcell=v=>v==null?'<td class="nb">&mdash;</td>':`<td style="background:${clr(Math.max(0,Math.min(1,(v-1)/98)))};${(v<38||v>62)?'color:#e8eef2':''}">${v}</td>`;
+ const body=rows.map(x=>`<tr>
+  <td class="d">${x.s}</td>
+  <td class="fg">${x.sec||'&mdash;'}</td>
+  <td style="color:${stg[x.stg]};font-weight:700">${x.stg}</td>
+  ${rcell(x.rsu)}${rcell(x.rss)}${rcell(x.rsn)}
+  <td>${x.fh==null?'':x.fh.toFixed(1)}</td>
+  <td>${x.fl==null?'':'+'+x.fl}</td>
+  <td>${x.px==null?'':x.px.toLocaleString('en-IN')}</td>
+  <td>${x.strict?'<span class="fl BULL">8/8</span>':x.pc+'/8'}</td></tr>`).join('');
+ const marketNote=A&&(A.regime==='Stand aside'||A.regime==='Defensive')
+  ?`<div class="note" style="border-color:#c2503c">Market regime is <b>${A.regime}</b>. O&rsquo;Neil, Minervini and Bonde all say the same thing: the best stock in a weak tape still fails. Treat this list as a watchlist, not a buy list, until the regime turns.</div>`
+  :`<div class="note">Market regime is <b>${A?A.regime:'?'}</b>. Names below pass a Stage-2 trend template. Cross-check each against liquidity and your own fundamentals before acting.</div>`;
+ el.innerHTML=`
+ <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center">
+  <div class="seg"><span class="sl">RS benchmark</span>
+   ${['rsu','rss','rsn'].map(m=>`<button class="sb ${RSMODE===m?'on':''}" onclick="RSMODE='${m}';screenPane()">${rsLabel[m]}</button>`).join('')}</div>
+  <div class="seg"><span class="sl">Filter</span>
+   <button class="sb ${SCRSTRICT?'on':''}" onclick="SCRSTRICT=true;screenPane()">Strict 8/8</button>
+   <button class="sb ${!SCRSTRICT?'on':''}" onclick="SCRSTRICT=false;screenPane()">Relaxed</button></div>
+  <select onchange="SCRSEC=this.value;screenPane()" style="margin-left:auto">
+   <option value="ALL"${SCRSEC==='ALL'?' selected':''}>All sectors</option>
+   ${secs.map(sc=>`<option value="${sc}"${SCRSEC===sc?' selected':''}>${sc}</option>`).join('')}</select>
+ </div>
+ ${marketNote}
+ <div class="obs"><b>Key observations</b>
+  <span>${STOCKS.n_strict} names pass strict Stage-2</span>
+  <span>Universe with RS: ${STOCKS.universe}</span>
+  <span>Showing ${rows.length} of ${cap} ${SCRSTRICT?'strict':'passing'}${SCRSEC!=='ALL'?' in '+SCRSEC:''}, ranked ${rsLabel[RSMODE]}</span>
+  <span>as of ${STOCKS.asof}</span></div>
+ <div class="tw"><table><thead><tr>
+  <th class="d">Symbol</th><th>Sector</th><th>Stg</th>
+  <th>RS-U</th><th>RS-Sec</th><th>RS-N50</th><th>% frm hi</th><th>% frm lo</th><th>Price</th><th>Template</th></tr></thead>
+  <tbody>${body}</tbody></table></div>
+ <div class="cap" style="margin-top:6px">Stage: <span style="color:#3f9a63">2 advancing</span> &middot; <span style="color:#9c9a30">1 basing</span> &middot; <span style="color:#d8875a">3 topping</span> &middot; <span style="color:#c2503c">4 declining</span>.
+  RS is a 1-99 percentile of weighted 3/6/12-month return. RS-Sec ranks within the stock&rsquo;s Nifty sector; blank means the stock is not in a tracked sector index.
+  <a class="jl" onclick="jump('reference')">method &amp; sources &rarr;</a></div>`;}
+
 function pills(d){const r=d.rows[0],p=[];
  p.push(`<div class="pill reg"><div class="k">Regime &middot; ${d.label}</div><div class="v" style="color:${RCOL[d.regime]||'inherit'}">${d.regime}</div></div>`);
  [['pct_above_10dma','&gt;10 DMA','%'],['pct_above_50dma','&gt;50 DMA','%'],['pct_above_200dma','&gt;200 DMA','%'],
@@ -927,6 +988,7 @@ function todayPane(){const A=ACTIONS;const el=document.getElementById('p-today')
    ${ups.length?`<div class="cr"><span class="cn" style="color:#5cc287">Turning up</span><span style="color:#aab8c2">${ups.map(c=>c.label).join(', ')}</span></div>`:''}
    ${dns.length?`<div class="cr"><span class="cn" style="color:#e07a63">Rolling over</span><span style="color:#aab8c2">${dns.map(c=>c.label).join(', ')}</span></div>`:''}
    <div class="cr"><span class="cn">Live flags</span><span>${flagHtml}</span></div>
+   ${(typeof STOCKS!=='undefined'&&STOCKS.n_strict)?`<div class="cr"><span class="cn" style="color:#6fd39a">Stage-2 names</span><span style="color:#aab8c2">${STOCKS.n_strict} pass strict template &nbsp;<a class="jl" onclick="jump('screen')">screen &rarr;</a></span></div>`:''}
    <div class="cap" style="margin-top:6px"><a class="jl" onclick="jump('sectors')">full sector view &rarr;</a> &nbsp; <a class="jl" onclick="jump('scanner')">momentum scanner &rarr;</a></div></div>
  </div>
  <div class="gs"><h4>How serious Indian breadth traders act on this</h4>
@@ -1046,6 +1108,7 @@ function jump(t){selectTab(t);}
 function draw(){const d=DATA[U];
  regimeBadge();
  if(TAB==='today')return todayPane();
+ if(TAB==='screen')return screenPane();
  if(TAB==='reference')return referencePane();
  if(TAB==='guide')return guidePane();
  if(TAB==='regime')return regimePane();
