@@ -165,7 +165,7 @@ def observations(g, universe):
         return obs
     last = g.iloc[-1]
     reg = regime(last)
-    obs.append(f"Regime {reg}: {REGIME_SIZE.get(reg, '')}")
+    obs.append(f"Regime: {reg} \u2192 {REGIME_SIZE.get(reg, '')}")
     a50 = g["pct_above_50dma"].values
     a10 = g["pct_above_10dma"].values
     a200 = g["pct_above_200dma"].values
@@ -173,46 +173,46 @@ def observations(g, universe):
     d5 = a50[-5:]
     if len(d5) == 5 and not np.isnan(d5).any():
         if all(d5[i] >= d5[i - 1] for i in range(1, 5)):
-            obs.append(f"% above 50 DMA rising five straight sessions, {d5[0]:.0f} to {d5[-1]:.0f}")
+            obs.append(f"50 DMA breadth: rising 5 sessions, {d5[0]:.0f}\u2192{d5[-1]:.0f}")
         elif all(d5[i] <= d5[i - 1] for i in range(1, 5)):
-            obs.append(f"% above 50 DMA falling five straight sessions, {d5[0]:.0f} to {d5[-1]:.0f}")
+            obs.append(f"50 DMA breadth: falling 5 sessions, {d5[0]:.0f}\u2192{d5[-1]:.0f}")
 
     if not np.isnan(a10[-1]) and not np.isnan(a50[-1]):
         gap = a10[-1] - a50[-1]
         if gap > 15:
-            obs.append(f"Short term running {gap:.0f} pts ahead of intermediate, stretched")
+            obs.append(f"Short term hot: 10 DMA {gap:.0f} pts over 50 DMA")
         elif gap < -12:
-            obs.append(f"Short term {abs(gap):.0f} pts behind intermediate, near-term selling into a firm trend")
+            obs.append(f"Short term soft: 10 DMA {abs(gap):.0f} pts under 50 DMA")
 
     r5 = last.get("ratio_5d", np.nan)
     if not pd.isna(r5):
         if r5 >= 5.0:
-            obs.append(f"5-day ratio {r5:.1f}, aggressive extreme by India calibration")
+            obs.append(f"5-day ratio {r5:.1f}: aggressive extreme")
         elif r5 <= 0.5:
-            obs.append(f"5-day ratio {r5:.2f}, defensive extreme, historically near lows")
+            obs.append(f"5-day ratio {r5:.2f}: defensive extreme (near lows)")
 
     if not pd.isna(a50[-1]) and not pd.isna(a200[-1]):
         if a50[-1] > 55 and a200[-1] > 55:
-            obs.append("Intermediate and long-term trends aligned bullish")
+            obs.append("Trends aligned: bullish")
         elif a50[-1] < 40 and a200[-1] < 45:
-            obs.append("Intermediate and long-term trends aligned bearish")
+            obs.append("Trends aligned: bearish")
         elif a50[-1] < 45 < a200[-1]:
-            obs.append("Intermediate weakening while long-term holds, corrective phase")
+            obs.append("Corrective: 50 DMA soft, 200 DMA firm")
 
     ext = last.get("pct_extended_50dma", np.nan)
     if not pd.isna(ext) and ext > 30:
-        obs.append(f"{ext:.0f}% of stocks extended above 50 DMA, froth building")
+        obs.append(f"Froth: {ext:.0f}% extended above 50 DMA")
 
     hl = last.get("hl_ratio", np.nan)
     if not pd.isna(hl):
         if hl > 0.85 and (last.get("new_52w_high", 0) + last.get("new_52w_low", 0)) > 10:
-            obs.append("New highs overwhelming new lows, broad strength")
+            obs.append("52wk: highs dominate, broad strength")
         elif hl < 0.2 and (last.get("new_52w_high", 0) + last.get("new_52w_low", 0)) > 10:
-            obs.append("New lows overwhelming new highs, broad weakness")
+            obs.append("52wk: lows dominate, broad weakness")
 
     u50 = last.get("up_50pct_21d", np.nan)
     if not pd.isna(u50) and u50 > 20:
-        obs.append(f"{int(u50)} stocks up 50%+ in a month, above the 20 mark Bonde flags before corrections")
+        obs.append(f"Top warning: {int(u50)} up 50%/month (>20)")
 
     flags = []
     for _, r in g.tail(8).iterrows():
@@ -226,7 +226,7 @@ def observations(g, universe):
         if r.get("div_bullish", False):
             flags.append(f"bull div {d}")
     if flags:
-        obs.append("Recent signals: " + ", ".join(flags[:4]))
+        obs.append("Signals: " + ", ".join(flags[:4]))
     return obs[:6]
 
 
@@ -312,6 +312,33 @@ def build_actionables(df, sizes):
     return a
 
 
+def sector_crossovers(df, sects, lookback=3):
+    """Detect recent MA-line crossovers per sector. A 10>50 upward cross = turning up;
+    a 10<50 downward cross = distribution starting. Returns compact records."""
+    out = []
+    for u in sects:
+        g = df[df.universe == u].sort_values("date")
+        if len(g) < 6:
+            continue
+        a10 = g["pct_above_10dma"].values
+        a50 = g["pct_above_50dma"].values
+        dates = g["date"].values
+        for i in range(max(1, len(g) - lookback), len(g)):
+            if np.isnan(a10[i]) or np.isnan(a50[i]) or np.isnan(a10[i-1]) or np.isnan(a50[i-1]):
+                continue
+            up = a10[i-1] <= a50[i-1] and a10[i] > a50[i]
+            dn = a10[i-1] >= a50[i-1] and a10[i] < a50[i]
+            if up or dn:
+                out.append({"u": u, "label": ULBL.get(u, u),
+                            "dir": "up" if up else "dn",
+                            "when": pd.Timestamp(dates[i]).strftime("%d/%m"),
+                            "a10": round(float(a10[i]), 0), "a50": round(float(a50[i]), 0),
+                            "ago": len(g) - 1 - i})
+    # freshest first
+    out.sort(key=lambda x: x["ago"])
+    return out
+
+
 def build(csv, out, rows, repo):
     df = pd.read_csv(csv)
     df["date"] = pd.to_datetime(df["date"])
@@ -369,6 +396,7 @@ def build(csv, out, rows, repo):
 
     runs = regime_runs(df[df.universe == (sizes[0] if sizes else next(iter(present)))].sort_values("date"))
     actions = build_actionables(df, sizes)
+    crossovers = sector_crossovers(df, sects)
 
     html = (TEMPLATE
             .replace("__DATA__", json.dumps(payload, separators=(",", ":")))
@@ -382,6 +410,7 @@ def build(csv, out, rows, repo):
             .replace("__SECTS__", json.dumps(sects))
             .replace("__ULBL__", json.dumps(ULBL))
             .replace("__ACTIONS__", json.dumps(actions, separators=(",", ":")))
+            .replace("__CROSS__", json.dumps(crossovers, separators=(",", ":")))
             .replace("__REGSIZE__", json.dumps(REGIME_SIZE))
             .replace("__REPO__", repo or ""))
     with open(out, "w") as f:
@@ -513,6 +542,22 @@ table.runs td.n{text-align:right;color:var(--dim)}
  padding:4px 12px;cursor:pointer;font:inherit;font-size:10.5px;border-radius:3px}
 .lg{display:flex;gap:10px;align-items:center;margin-top:8px;color:var(--dim);font-size:10px;flex-wrap:wrap}
 canvas.gr{width:150px;height:10px;border-radius:2px}
+.tip{position:absolute;pointer-events:none;background:#0b0f12;border:1px solid var(--rule);border-radius:3px;
+ padding:5px 8px;font:10.5px ui-monospace,Menlo,monospace;color:var(--ink);opacity:0;transition:opacity .08s;
+ white-space:nowrap;z-index:5;box-shadow:0 4px 12px rgba(0,0,0,.5)}
+.tip .tk{color:var(--dim)}.tip .tv{color:var(--ink);font-weight:600}
+.chartbox{cursor:crosshair}
+.xstrip{display:flex;gap:6px;flex-wrap:wrap;padding:7px 11px;border:1px solid var(--rule);background:var(--pnl);
+ border-radius:3px;margin-bottom:8px;align-items:center}
+.xchip{font-size:10.5px;padding:2px 8px;border-radius:10px;font-weight:600;letter-spacing:.02em}
+.xchip.up{background:#183a26;color:#6fd39a;border:1px solid #2c6b45}
+.xchip.dn{background:#3a1c17;color:#e0916f;border:1px solid #6b3226}
+.xmk{margin-left:5px;font-size:9px;vertical-align:1px}
+.xmk.up{color:#5cc287}.xmk.dn{color:#e07a63}
+.rtx{position:relative;height:14px;margin-top:2px;font:9px ui-monospace,Menlo,monospace;color:var(--dim)}
+.rtx span{position:absolute;top:0;white-space:nowrap}
+.jl{color:var(--acc);cursor:pointer;font-size:10px;text-decoration:underline;text-underline-offset:2px}
+.jl:hover{color:#6fd39a}
 footer{margin-top:9px;color:var(--dim);font-size:10px;line-height:1.55}
 @media(max-width:760px){.pill{min-width:64px}.pill.reg{min-width:100%}.ct{max-width:180px}.cn{width:72px}}
 </style></head><body><div class="wrap">
@@ -544,7 +589,7 @@ footer{margin-top:9px;color:var(--dim);font-size:10px;line-height:1.55}
 <script>
 const KEYS=__KEYS__,KI={};__KEYS__.forEach((k,i)=>KI[k]=i);
 const DATA=__DATA__,SER=__SERIES__,RUNS=__RUNS__,GROUPS=__GROUPS__,NARROW=new Set(__NARROW__),
- LISTS=__LISTS__,SIZES=__SIZES__,SECTS=__SECTS__,ULBL=__ULBL__,REPO="__REPO__",ACTIONS=__ACTIONS__,REGSIZE=__REGSIZE__;
+ LISTS=__LISTS__,SIZES=__SIZES__,SECTS=__SECTS__,ULBL=__ULBL__,REPO="__REPO__",ACTIONS=__ACTIONS__,REGSIZE=__REGSIZE__,CROSS=__CROSS__;
 const LBL={up4:"up 4%+",dn4:"down 4%+",up10:"up 10%+",dn10:"down 10%+",hi52:"at a 52-week high",
  lo52:"at a 52-week low",up25:"up 25%+ in 21 sessions",dn25:"down 25%+ in 21 sessions",
  up25q:"up 25%+ in a quarter",dn25q:"down 25%+ in a quarter",up20_5d:"up 20%+ in 5 sessions",
@@ -647,12 +692,15 @@ function chartPane(){const s0=SER[U],d=DATA[U];if(!s0)return;
   <option value="520" selected>2 years</option><option value="0">All history</option></select></div>
  <div class="obs" id="obsC"></div>
  <div class="card"><h3>Participation vs price &mdash; ${d.label}</h3>
-  <svg viewBox="0 0 ${W} ${H+20}" preserveAspectRatio="none" style="height:200px">${bandsSvg}${gridx}
+  <div class="chartbox" id="cb1" style="position:relative">
+  <svg id="svg1" viewBox="0 0 ${W} ${H+20}" preserveAspectRatio="none" style="height:200px">${bandsSvg}${gridx}
    ${line(s.a50,W,H,0,100,'#5cc287')}${line(s.a200,W,H,0,100,'#6f9fd8')}
    ${(s.t2108&&s.t2108.length?line(s.t2108,W,H,0,100,'#b98bd8'):'')}
    ${line(s.nifty,W,H,nlo,nhi,'#d8b34a')}
    ${s.zweig.map(i=>`<circle cx="${(i/(n-1)*W).toFixed(1)}" cy="6" r="4" fill="#e8d24a" stroke="#111"/>`).join('')}
-   ${s.thr.map(i=>`<circle cx="${(i/(n-1)*W).toFixed(1)}" cy="6" r="2.4" fill="#5cc287"/>`).join('')}${lbl}</svg>
+   ${s.thr.map(i=>`<circle cx="${(i/(n-1)*W).toFixed(1)}" cy="6" r="2.4" fill="#5cc287"/>`).join('')}${lbl}
+   <line id="ch1" x1="0" y1="0" x2="0" y2="${H}" stroke="#e8eef2" stroke-width="1" opacity="0"/></svg>
+  <div class="tip" id="tip1"></div></div>
   <div class="cap"><span style="color:#5cc287">&#9644;</span> % above 50 DMA &nbsp;
    <span style="color:#b98bd8">&#9644;</span> T2108 (% above 40 DMA) &nbsp;
    <span style="color:#6f9fd8">&#9644;</span> % above 200 DMA &nbsp;
@@ -661,12 +709,33 @@ function chartPane(){const s0=SER[U],d=DATA[U];if(!s0)return;
    Background bands mark regime zones: red below 30, amber 30 to 45, green above 60.
    Where the gold line rises while the green line falls, the index is being carried by fewer stocks.</div></div>
  <div class="card"><h3>Net 4% movers</h3>
-  <svg viewBox="0 0 ${W} 100" preserveAspectRatio="none" style="height:110px">
-   <line x1="0" y1="50" x2="${W}" y2="50" stroke="#2b353e"/>${n4bars}</svg>
+  <div class="chartbox" id="cb2" style="position:relative">
+  <svg id="svg2" viewBox="0 0 ${W} 100" preserveAspectRatio="none" style="height:110px">
+   <line x1="0" y1="50" x2="${W}" y2="50" stroke="#2b353e"/>${n4bars}
+   <line id="ch2" x1="0" y1="0" x2="0" y2="100" stroke="#e8eef2" stroke-width="1" opacity="0"/></svg>
+  <div class="tip" id="tip2"></div></div>
   <div class="cap">Stocks up 4% minus stocks down 4%, each session. Clusters of tall green bars after a decline
    are the thrust signature; sustained red under a flat index is distribution.</div></div>`;
  const sel=document.getElementById('chw');if(sel){sel.value=String(CHW);sel.onchange=e=>{CHW=+e.target.value;chartPane()}}
+ wireTip('cb1','svg1','ch1','tip1',n,i=>[
+   ['Date',s.d[i]],['% >50 DMA',fmtp(s.a50[i])],['T2108',fmtp(s.t2108[i])],
+   ['% >200 DMA',fmtp(s.a200[i])],['Nifty',s.nifty[i]!=null?Math.round(s.nifty[i]).toLocaleString('en-IN'):'']]);
+ wireTip('cb2','svg2','ch2','tip2',n,i=>[['Date',s.d[i]],['Net 4%',(s.net4[i]>0?'+':'')+(s.net4[i]??'')]]);
  obsP(d,'obsC')}
+function fmtp(v){return v==null?'':v.toFixed(1)+'%'}
+function wireTip(box,svg,ch,tip,n,rowFn){
+ const b=document.getElementById(box),sv=document.getElementById(svg),
+  cl=document.getElementById(ch),tp=document.getElementById(tip);
+ if(!b||!sv)return;
+ b.onmousemove=e=>{const r=b.getBoundingClientRect();const fx=(e.clientX-r.left)/r.width;
+  let i=Math.round(fx*(n-1));i=Math.max(0,Math.min(n-1,i));
+  const vb=sv.viewBox.baseVal.width,x=i/(n-1)*vb;
+  cl.setAttribute('x1',x);cl.setAttribute('x2',x);cl.setAttribute('opacity','.5');
+  const rows=rowFn(i).filter(([k,v])=>v!=='');
+  tp.innerHTML=rows.map(([k,v])=>`<span class="tk">${k}</span> <span class="tv">${v}</span>`).join('<br>');
+  tp.style.opacity='1';const left=fx>0.6?fx*r.width-tp.offsetWidth-12:fx*r.width+12;
+  tp.style.left=Math.max(2,left)+'px';tp.style.top='6px';};
+ b.onmouseleave=()=>{cl.setAttribute('opacity','0');tp.style.opacity='0';};}
 
 /* ---- sectors ---- */
 function sectorPane(){if(!SECTS.length){document.getElementById('p-sectors').innerHTML=
@@ -674,15 +743,26 @@ function sectorPane(){if(!SECTS.length){document.getElementById('p-sectors').inn
  const rank=SECTS.map(u=>({u,r:DATA[u]?DATA[u].rows[0]:null})).filter(x=>x.r)
   .sort((a,b)=>(gv(b.r,'pct_above_50dma')||0)-(gv(a.r,'pct_above_50dma')||0));
  const top=rank.slice(0,3).map(x=>ULBL[x.u]).join(', '),bot=rank.slice(-3).map(x=>ULBL[x.u]).join(', ');
+ const XMAP={};CROSS.forEach(c=>{XMAP[c.u]=c.dir});
  const rows=(m,sortSelf)=>{let R=rank;
   if(sortSelf){R=rank.slice().sort((a,b)=>(gv(b.r,m)||0)-(gv(a.r,m)||0));}
   return R.map(x=>{const v=gv(x.r,m);if(v==null)return'';
-  return`<div class="cr"><span class="cn">${ULBL[x.u]}</span><div class="ct">
+  const mk=XMAP[x.u]?`<span class="xmk ${XMAP[x.u]}">${XMAP[x.u]==='up'?'\u25b2':'\u25bc'}</span>`:'';
+  return`<div class="cr"><span class="cn">${ULBL[x.u]}${mk}</span><div class="ct">
   <div class="cf" style="width:${v}%;background:${bc(v)}"></div></div><span class="cv">${v.toFixed(0)}%</span></div>`}).join('');};
+ const ups=CROSS.filter(c=>c.dir==='up'),dns=CROSS.filter(c=>c.dir==='dn');
+ const strip=CROSS.length?`<div class="xstrip">${CROSS.slice(0,8).map(c=>
+   `<span class="xchip ${c.dir}">${c.dir==='up'?'\u25b2':'\u25bc'} ${c.label} ${c.when}</span>`).join('')}</div>`
+   :`<div class="xstrip"><span style="color:var(--dim)">No fresh 10/50 DMA crossovers in the last 3 sessions</span></div>`;
+ const cbnobs=[];
+ cbnobs.push(`<span>Lead 50 DMA: ${top}</span>`);
+ cbnobs.push(`<span>Lag: ${bot}</span>`);
+ cbnobs.push(`<span>Spread: ${(gv(rank[0].r,'pct_above_50dma')-gv(rank[rank.length-1].r,'pct_above_50dma')).toFixed(0)} pts</span>`);
+ if(ups.length)cbnobs.push(`<span style="color:#5cc287">Turning up: ${ups.map(c=>c.label).join(', ')}</span>`);
+ if(dns.length)cbnobs.push(`<span style="color:#e07a63">Rolling over: ${dns.map(c=>c.label).join(', ')}</span>`);
  document.getElementById('p-sectors').innerHTML=`
- <div class="obs"><b>Key observations</b>
-  <span>Leading on the 50 DMA: ${top}</span><span>Lagging: ${bot}</span>
-  <span>Spread top to bottom: ${(gv(rank[0].r,'pct_above_50dma')-gv(rank[rank.length-1].r,'pct_above_50dma')).toFixed(0)} pts</span></div>
+ <div class="obs"><b>Key observations</b>${cbnobs.join('')}</div>
+ ${strip}
  <div class="grid2">
   <div class="card"><h3>% above 50 DMA, by sector</h3>${rows('pct_above_50dma')}
    <div class="cap">Intermediate trend health. Sectors above 60 are participating; below 30 are being sold.</div></div>
@@ -712,23 +792,38 @@ function comparePane(){const M=[['pct_above_50dma','% above 50 DMA'],['pct_above
   +`</div>`).join('')+`</div>`}
 
 /* ---- regime timeline ---- */
+let RTW=520;  // regime timeline window; default 2 years
+function parseDMY(x){const p=x.split('/');return new Date(2000+ +p[2], +p[1]-1, +p[0]);}
 function regimePane(){const RC=RCOL;
- const tot=RUNS.reduce((s,r)=>s+r.n,0);
- const bar=RUNS.map(r=>`<div style="flex:${r.n};background:${RC[r.r]}" title="${r.r} · ${r.from} to ${r.to} · ${r.n} sessions"></div>`).join('');
+ let R=RUNS;
+ if(RTW){let acc=0;R=[];for(let i=RUNS.length-1;i>=0;i--){R.unshift(RUNS[i]);acc+=RUNS[i].n;if(acc>=RTW)break;}}
+ const tot=R.reduce((s,r)=>s+r.n,0);
+ const bar=R.map(r=>`<div style="flex:${r.n};background:${RC[r.r]}" title="${r.r} · ${r.from} to ${r.to} · ${r.n} sessions"></div>`).join('');
+ // month/year ticks along the axis
+ let ticks='',cum=0,lastLbl='';
+ R.forEach(r=>{const dt=parseDMY(r.from);const lbl=dt.toLocaleDateString('en-GB',{month:'short',year:'2-digit'});
+  const mid=(cum+r.n/2)/tot*100;
+  if(lbl!==lastLbl){ticks+=`<span style="position:absolute;left:${((cum)/tot*100).toFixed(1)}%;transform:translateX(-1px)">${lbl}</span>`;lastLbl=lbl;}
+  cum+=r.n;});
  const cur=RUNS[RUNS.length-1];
  const longest=RUNS.slice().sort((a,b)=>b.n-a.n)[0];
  const tbl=RUNS.slice().reverse().slice(0,14).map(r=>
   `<tr><td style="color:${RC[r.r]};font-weight:700">${r.r}</td><td>${r.from} &rarr; ${r.to}</td><td class="n">${r.n} sess</td></tr>`).join('');
  document.getElementById('p-regime').innerHTML=`
+ <div style="margin-bottom:7px"><select id="rtw">
+  <option value="120">6 months</option><option value="250">1 year</option>
+  <option value="520">2 years</option><option value="0">All history</option></select></div>
  <div class="obs"><b>Key observations</b>
-  <span>Current regime: ${cur.r}, ${cur.n} sessions and counting</span>
-  <span>Longest run on record: ${longest.r}, ${longest.n} sessions</span>
-  <span>${RUNS.length} regime changes across ${tot} sessions</span></div>
+  <span>Now: ${cur.r}, ${cur.n} sessions</span>
+  <span>Longest run: ${longest.r}, ${longest.n} sess</span>
+  <span>${RUNS.length} changes / ${RUNS.reduce((s,r)=>s+r.n,0)} sessions</span></div>
  <div class="card"><h3>Regime timeline &mdash; All NSE, oldest left</h3><div class="rt">${bar}</div>
+  <div class="rtx">${ticks}</div>
   <div class="rl">${Object.keys(RCOL).filter(k=>k!=='n/a').map(k=>`<span><i style="background:${RCOL[k]}"></i>${k}</span>`).join('')}</div>
-  <div class="cap">Each block is a continuous run at one regime. Width is proportional to how long it lasted. Hover for dates.
-   Short alternating blocks mean a chopping market where breadth signals are unreliable; long blocks mean a trend worth positioning behind.</div></div>
- <div class="card"><h3>Recent regime runs</h3><table class="runs">${tbl}</table></div>`}
+  <div class="cap">Each block is a continuous run at one regime, width proportional to length. Month labels below the bar.
+   Short alternating blocks: chopping market, signals unreliable. Long blocks: a trend worth positioning behind.</div></div>
+ <div class="card"><h3>Recent regime runs</h3><table class="runs">${tbl}</table></div>`;
+ const sel=document.getElementById('rtw');if(sel){sel.value=String(RTW);sel.onchange=e=>{RTW=+e.target.value;regimePane()}}}
 
 /* ---- scanner ---- */
 function scannerPane(){const d=DATA[U],iso=d.rows[0][ISO_],L=LISTS[iso]&&LISTS[iso][U];
@@ -778,12 +873,12 @@ function actionsPane(){const A=ACTIONS;const el=document.getElementById('p-actio
  ${ex}${rot}
  <div class="gs"><h4>How serious Indian breadth traders act on this</h4>
   <table><tbody>
-   <tr><td>Regime sets exposure</td><td>Aggressive full, Normal standard, Defensive half, Stand aside cash</td></tr>
+   <tr><td>Regime sets exposure</td><td>Aggressive full, Normal standard, Defensive half, Stand aside cash &nbsp;<a class="jl" onclick="jump('regime')">Regime &rarr;</a></td></tr>
    <tr><td>Only add on green checklist</td><td>Three or more greens before pressing new risk</td></tr>
-   <tr><td>Fish in leading sectors</td><td>Take breakouts where sector breadth &gt; 60%</td></tr>
-   <tr><td>Trim into froth</td><td>Ext &gt; 35% or 50%/month count &gt; 20: scale out, do not add</td></tr>
-   <tr><td>Buy washouts, not tops</td><td>Act on defensive extremes and Zweig thrusts; ignore bullish extremes as timing tools</td></tr>
-   <tr><td>Divergence tightens stops</td><td>Bear div is not a sell, it is a signal to raise stops on open longs</td></tr>
+   <tr><td>Fish in leading sectors</td><td>Breakouts where sector breadth &gt; 60% &nbsp;<a class="jl" onclick="jump('sectors')">Sectors &rarr;</a></td></tr>
+   <tr><td>Trim into froth</td><td>Ext &gt; 35% or 50%/month &gt; 20: scale out &nbsp;<a class="jl" onclick="jump('table')">Table &rarr;</a></td></tr>
+   <tr><td>Buy washouts, not tops</td><td>Act on defensive extremes and Zweig thrusts &nbsp;<a class="jl" onclick="jump('charts')">Charts &rarr;</a> <a class="jl" onclick="jump('guide')">what&rsquo;s a defensive extreme? &rarr;</a></td></tr>
+   <tr><td>Divergence tightens stops</td><td>Bear div is not a sell: raise stops on open longs</td></tr>
   </tbody></table></div>`;}
 
 function referencePane(){document.getElementById('p-reference').innerHTML=`
@@ -819,6 +914,15 @@ function referencePane(){document.getElementById('p-reference').innerHTML=`
 function guidePane(){document.getElementById('p-guide').innerHTML=`
  <div class="note"><b>Use breadth at extremes, not in the middle.</b> The 5-day ratio hitting an extreme is the event to act on. Extremely bearish breadth reliably marks bottoms; extremely bullish breadth does not reliably mark tops. Add risk after washouts, trim risk gradually.</div>
  <div class="gd">
+ <div class="gs" style="grid-column:1/-1"><h4>Key terms, with a worked example each</h4><table><tbody>
+  <tr><td>T2108</td><td>Percent of stocks above their 40-day moving average. The oldest breadth gauge, from Worden. <b>Example:</b> T2108 = 47 means 47% of the universe is above its 40 DMA, a middling tape. Below 20 is oversold, above 80 is overbought. It leads the 50 DMA reading slightly because 40 &lt; 50.</td></tr>
+  <tr><td>Defensive extreme</td><td>The 5-day ratio at or below 0.5, meaning 4% decliners outnumbered 4% gainers roughly 2:1 or worse over the week. <b>Example:</b> a ratio of 0.45 after a three-week slide has historically sat within days of an intermediate low. It is a signal to prepare to buy, not to sell.</td></tr>
+  <tr><td>Aggressive extreme</td><td>The 5-day ratio at or above 5.0, India-calibrated (US uses 2.0). <b>Example:</b> a ratio of 6 after a washout confirms a thrust and says press long exposure. The same reading late in an extended run means less.</td></tr>
+  <tr><td>5-day ratio</td><td>Sum of the last five sessions&rsquo; 4%-up counts divided by the sum of 4%-down counts. <b>Example:</b> 90 up-4% and 30 down-4% over the week gives 3.0, firmly bullish but short of the 5.0 extreme.</td></tr>
+  <tr><td>Divergence (bear)</td><td>Nifty prints a fresh 20-session high while % above 50 DMA does not. <b>Example:</b> index at a new high but 50 DMA breadth stuck at 52 versus 60 a month ago means fewer stocks carry the tape; raise stops.</td></tr>
+  <tr><td>Zweig thrust</td><td>The 10-day advance ratio races from below 0.40 to above 0.615 within ten sessions. <b>Example:</b> it has fired only nine times in this record; each marked the start of a strong multi-week advance. Rare and unambiguous.</td></tr>
+  <tr><td>Crossover (10&times;50)</td><td>A sector&rsquo;s % above 10 DMA crossing above its % above 50 DMA. <b>Example:</b> Infra 10 DMA rising through its 50 DMA line is the first sign a laggard is turning up, before the 50 DMA itself improves. The Sectors tab flags these.</td></tr>
+ </tbody></table></div>
  <div class="gs"><h4>Regime, action labels</h4><table><tbody>
   <tr><td style="color:#2c8f57;font-weight:700">Aggressive</td><td>&ge;58% above 50 DMA, ratio &ge;1</td><td>Full size, buy breakouts freely</td></tr>
   <tr><td style="color:#5b8f3f;font-weight:700">Normal</td><td>45&ndash;58% above 50 DMA</td><td>Standard size, be selective</td></tr>
@@ -880,6 +984,7 @@ async function show(iso,k){const o=document.getElementById('ov');
  document.getElementById('bs').textContent=`${iso}${s?' · '+s.length+' stocks':''}`}
 
 /* ---- draw ---- */
+function jump(t){const tb=document.querySelector('.tb[data-t='+t+']');if(tb)tb.dispatchEvent(new MouseEvent('click',{bubbles:true}));}
 function draw(){const d=DATA[U];
  if(TAB==='actions')return actionsPane();
  if(TAB==='reference')return referencePane();
