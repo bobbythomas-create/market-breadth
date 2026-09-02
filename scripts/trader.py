@@ -137,7 +137,7 @@ def index_block(oh):
 
 def fno_block(prices, fno):
     """Per-F&O-stock squeeze rank + today's +/-8% event movers."""
-    out = {"squeeze": [], "events": [], "has_ohlc": False}
+    out = {"squeeze": [], "events": [], "fired": [], "has_ohlc": False}
     if prices is None or fno is None:
         return out
     prices = prices.copy(); prices["date"] = pd.to_datetime(prices["date"])
@@ -159,8 +159,9 @@ def fno_block(prices, fno):
     if not has_ohlc:
         return out    # squeeze needs OHLC history; wait for backfill
 
-    # per-stock ATR percentile; low percentile = coiled
-    recs = []
+    # per-stock ATR percentile; low percentile = coiled. Also detect squeeze-FIRES:
+    # a name that was coiled a few sessions ago and whose ATR has now jumped (expansion started).
+    recs, fired = [], []
     for sym, g in p.sort_values("date").groupby("symbol"):
         if len(g) < 60:
             continue
@@ -168,15 +169,27 @@ def fno_block(prices, fno):
         cur = a.iloc[-1]
         if pd.isna(cur):
             continue
-        pr = pctile(a.tail(TRADING_DAYS), cur)
+        aser = a.tail(TRADING_DAYS)
+        pr = pctile(aser, cur)
         if pr is None:
             continue
         c = g.iloc[-1]
-        recs.append({"s": sym, "atr_pctile": pr, "atr_pct": round(float(cur), 2),
-                     "px": round(float(c["close"]), 1),
-                     "chg": round(float(c["close"] / c["prev_close"] - 1) * 100, 1)})
-    recs.sort(key=lambda r: r["atr_pctile"])          # tightest first
+        chg = float(c["close"] / c["prev_close"] - 1) * 100
+        # trend lean: price vs its 50-session mean
+        m50 = g["close"].tail(50).mean()
+        lean = "up" if c["close"] > m50 else "dn"
+        rec = {"s": sym, "atr_pctile": pr, "atr_pct": round(float(cur), 2),
+               "px": round(float(c["close"]), 1), "chg": round(chg, 1), "lean": lean}
+        recs.append(rec)
+        # fire: percentile 5 sessions ago was <=15, now >=35, i.e. it broke out of the coil
+        if len(a) > 6:
+            pr_prev = pctile(a.tail(TRADING_DAYS + 5).head(-5) if len(a) > TRADING_DAYS + 5 else a.iloc[:-5], a.iloc[-6])
+            if pr_prev is not None and pr_prev <= 15 and pr >= 35:
+                fired.append({**rec, "was": pr_prev})
+    recs.sort(key=lambda r: r["atr_pctile"])
+    fired.sort(key=lambda r: -abs(r["chg"]))
     out["squeeze"] = recs[:40]
+    out["fired"] = fired[:20]
     return out
 
 
