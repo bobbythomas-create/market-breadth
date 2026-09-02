@@ -14,7 +14,7 @@ Usage
   python frameworks.py --src frameworks
 """
 
-import argparse, csv, glob, json, os
+import argparse, csv, datetime, glob, json, os
 
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")
 
@@ -23,6 +23,7 @@ LABELS = {
     "coffeecan": "Coffee Can", "consistentcompounder": "Consistent Compounder",
     "garp": "GARP", "cashisking": "Cash-is-King", "peterlynch": "Peter Lynch",
     "vijaymalik": "Vijay Malik", "piotroski": "Piotroski", "100bagger": "100-Bagger",
+    "superstar": "Superstar", "bigbull": "Superstar", "marquee": "Superstar",
 }
 
 
@@ -39,7 +40,8 @@ def build(src):
     files = sorted(glob.glob(os.path.join(src, "*.csv")))
     if not files:
         print(f"no CSVs in {src}, writing empty frameworks.json")
-        json.dump({"frameworks": [], "map": {}}, open(os.path.join(DATA, "frameworks.json"), "w"))
+        json.dump({"frameworks": [], "map": {}, "built": datetime.date.today().isoformat(),
+               "superstar_present": False}, open(os.path.join(DATA, "frameworks.json"), "w"))
         return
     fw_list = []
     for f in files:
@@ -62,7 +64,9 @@ def build(src):
         except Exception as e:
             print(f"  {os.path.basename(f)}: {e}")
     os.makedirs(DATA, exist_ok=True)
-    json.dump({"frameworks": sorted(set(fw_list)), "map": m},
+    json.dump({"frameworks": sorted(set(fw_list)), "map": m,
+               "built": datetime.date.today().isoformat(),
+               "superstar_present": any("superstar" in f.lower() for f in files)},
               open(os.path.join(DATA, "frameworks.json"), "w"), separators=(",", ":"))
     multi = sum(1 for v in m.values() if len(v) >= 2)
     print(f"frameworks.json: {len(m)} symbols across {len(set(fw_list))} frameworks, {multi} in 2+")
