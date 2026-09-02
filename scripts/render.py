@@ -393,6 +393,13 @@ def build(csv, out, rows, repo):
             trader = json.load(open(tpath))
         except Exception:
             pass
+    changes = {}
+    chpath = os.path.join(os.path.dirname(os.path.abspath(csv)), "changes.json")
+    if os.path.exists(chpath):
+        try:
+            changes = json.load(open(chpath))
+        except Exception:
+            pass
 
     present = set(df["universe"].unique())
     sizes = [u for u in SIZE_UNIVERSES if u in present]
@@ -465,6 +472,7 @@ def build(csv, out, rows, repo):
             .replace("__FNOSET__", json.dumps(fnoset, separators=(",", ":")))
             .replace("__FW__", json.dumps(fw, separators=(",", ":")))
             .replace("__TRADER__", json.dumps(trader, separators=(",", ":")))
+            .replace("__CHANGES__", json.dumps(changes, separators=(",", ":")))
             .replace("__REGSIZE__", json.dumps(REGIME_SIZE))
             .replace("__REPO__", repo or ""))
     with open(out, "w") as f:
@@ -566,6 +574,8 @@ svg{display:block;width:100%}
 table.runs{width:100%;font:11px ui-monospace,Menlo,monospace;margin-top:11px}
 table.runs td{color:var(--ink);font-weight:400;padding:3px 6px;text-align:left;border-bottom:1px solid #202931}
 table.runs td.n{text-align:right;color:var(--dim)}
+.tw td.n{text-align:right;color:var(--ink)}
+.tw td.nb{color:var(--ink)}
 /* scanner */
 .sc{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:5px;margin-top:9px}
 .si{background:#0d1216;border:1px solid var(--rule);border-radius:2px;padding:5px 8px;font:11px ui-monospace,Menlo,monospace}
@@ -617,6 +627,22 @@ canvas.gr{width:150px;height:10px;border-radius:2px}
 .sb{font-size:10.5px;padding:3px 9px;border:0;background:transparent;color:var(--dim);cursor:pointer;border-radius:3px;font-weight:600}
 .sb.on{background:var(--acc);color:#08110c}.sb:hover:not(.on){color:var(--ink)}
 .fno{color:#6f9fd8;font-size:10px;margin-left:4px;vertical-align:1px}
+.chgstrip{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:7px 11px;border:1px solid var(--rule);
+ background:var(--pnl);border-radius:3px;margin-bottom:8px}
+.chgstrip.quiet{color:var(--dim)}
+.cl{font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-right:4px}
+.chip2{font-size:10.5px;padding:2px 9px;border-radius:3px;border:1px solid var(--rule);background:#0d1216;color:#c3ced6}
+.chip2 b{font-size:8.5px;letter-spacing:.05em;margin-right:4px}
+.insights{border:1px solid var(--rule);background:var(--pnl);border-radius:3px;padding:8px 12px;margin-bottom:9px}
+.ins{font-size:12px;line-height:1.6;color:#c3ced6}
+.ins.cross{margin-top:4px;padding-top:5px;border-top:1px solid var(--rule);color:var(--ink)}
+.il{font-size:8.5px;letter-spacing:.1em;font-weight:700;margin-right:8px;display:inline-block;min-width:44px}
+.rmd{border-radius:3px;padding:8px 12px;margin-bottom:9px;font-size:12px;line-height:1.5}
+.rmd.on{background:#3a1512;border:1.5px solid #c2503c;color:#f0b8ab}
+.rmd.on b{color:#ff6b52}
+.rmd.soft{background:var(--pnl);border:1px solid var(--rule);color:var(--dim);font-size:11px}
+.rmd:not(.on):not(.soft){background:#3a2a12;border:1px solid #a07a30;color:#e0c68a}
+.rmd code{background:#0d1216;padding:1px 5px;border-radius:2px;font-size:11px}
 .rbadge{font:11px/1 ui-sans-serif;font-weight:700;padding:4px 10px;border-radius:12px;letter-spacing:.03em;white-space:nowrap}
 .verdict{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;
  border:2px solid var(--rule);border-radius:4px;background:var(--pnl);padding:14px 18px;margin-bottom:9px}
@@ -668,7 +694,7 @@ footer{margin-top:9px;color:var(--dim);font-size:10px;line-height:1.55}
 <script>
 const KEYS=__KEYS__,KI={};__KEYS__.forEach((k,i)=>KI[k]=i);
 const DATA=__DATA__,SER=__SERIES__,RUNS=__RUNS__,GROUPS=__GROUPS__,NARROW=new Set(__NARROW__),
- LISTS=__LISTS__,SIZES=__SIZES__,SECTS=__SECTS__,ULBL=__ULBL__,REPO="__REPO__",ACTIONS=__ACTIONS__,REGSIZE=__REGSIZE__,CROSS=__CROSS__,SEGCROSS=__SEGCROSS__,STOCKS=__STOCKS__,FNOSET=__FNOSET__,FW=__FW__,TRADER=__TRADER__;
+ LISTS=__LISTS__,SIZES=__SIZES__,SECTS=__SECTS__,ULBL=__ULBL__,REPO="__REPO__",ACTIONS=__ACTIONS__,REGSIZE=__REGSIZE__,CROSS=__CROSS__,SEGCROSS=__SEGCROSS__,STOCKS=__STOCKS__,FNOSET=__FNOSET__,FW=__FW__,TRADER=__TRADER__,CHANGES=__CHANGES__;
 const LBL={up4:"up 4%+",dn4:"down 4%+",up10:"up 10%+",dn10:"down 10%+",hi52:"at a 52-week high",
  lo52:"at a 52-week low",up25:"up 25%+ in 21 sessions",dn25:"down 25%+ in 21 sessions",
  up25q:"up 25%+ in a quarter",dn25q:"down 25%+ in a quarter",up20_5d:"up 20%+ in 5 sessions",
@@ -751,7 +777,7 @@ function traderPane(){const T=TRADER,el=document.getElementById('p-trader');
    ${i.atr_pctile!=null?`<div class="cap">ATR percentile ${i.atr_pctile}% &middot; ${i.atr_pct}% of price</div>`:'<div class="cap">needs index OHLC (arrives after next run)</div>'}</div>`;}).join('');
  // fno squeeze / events
  const evRows=(fb.events||[]).map(e=>`<tr><td class="d">${e.s}${FNOSET&&FNOSET[e.s]?'':''}</td><td class="n" style="color:${e.chg>0?'#6fd39a':'#e07a63'}">${e.chg>0?'+':''}${e.chg}%</td><td class="n">${e.px}</td></tr>`).join('');
- const sqRows=(fb.squeeze||[]).slice(0,30).map(x=>`<tr><td class="d">${x.s}</td><td class="n">${x.atr_pctile}%</td><td class="n">${x.atr_pct}%</td><td class="n">${x.px}</td><td class="n" style="color:${x.chg>0?'#6fd39a':'#e07a63'}">${x.chg>0?'+':''}${x.chg}</td></tr>`).join('');
+ const sqRows=(fb.squeeze||[]).slice(0,30).map(x=>`<tr><td class="d">${x.s}${FNOSET&&FNOSET[x.s]?'':''}</td><td class="n">${x.atr_pctile}%</td><td class="n">${x.atr_pct}%</td><td class="n" style="color:${x.lean==='up'?'#6fd39a':'#e07a63'}">${x.lean==='up'?'\u2191':'\u2193'}</td><td class="n">${x.px}</td><td class="n" style="color:${x.chg>0?'#6fd39a':'#e07a63'}">${x.chg>0?'+':''}${x.chg}</td></tr>`).join('');
  const noOhlc=!fb.has_ohlc;
  el.innerHTML=`
  <div class="note">Volatility context for F&O. Every gauge here is a regime read, not a signal to enter. Confirm with your own chart, option chain and event calendar. Data ${T.asof||''}.</div>
@@ -761,9 +787,10 @@ function traderPane(){const T=TRADER,el=document.getElementById('p-trader');
   <div style="display:flex;gap:4px;margin-bottom:8px">
    <button class="sb ${SQTAB==='squeeze'?'on':''}" onclick="SQTAB='squeeze';traderPane()">Squeeze scan</button>
    <button class="sb ${SQTAB==='events'?'on':''}" onclick="SQTAB='events';traderPane()">&plusmn;8% events</button></div>
+  ${(fb.fired&&fb.fired.length)?`<div class="obs" style="margin-bottom:8px"><b style="color:#d8b34a">Squeeze FIRES today \u2014 coil just broke</b>${fb.fired.slice(0,10).map(f=>`<span>${f.s} <span style="color:${f.lean==='up'?'#6fd39a':'#e07a63'}">${f.lean==='up'?'\u2191':'\u2193'}</span> ${f.chg>0?'+':''}${f.chg}%</span>`).join('')}</div>`:''}
   ${SQTAB==='squeeze'?(noOhlc?`<div class="cap">Stock squeeze scan needs the OHLC-widened price store. It activates one backfill re-run after you deploy the new ingest. Until then, index squeeze (above) and event movers work.</div>`
     :`<div class="obs"><b>Most coiled F&O stocks</b><span>Lowest ATR percentile = tightest range = expansion setup loading</span></div>
-    <div class="tw" style="max-height:52vh"><table><thead><tr><th class="d">Symbol</th><th>ATR %ile</th><th>ATR%</th><th>Price</th><th>Day%</th></tr></thead><tbody>${sqRows}</tbody></table></div>`)
+    <div class="tw" style="max-height:52vh"><table><thead><tr><th class="d">Symbol</th><th>ATR %ile</th><th>ATR%</th><th>Lean</th><th>Price</th><th>Day%</th></tr></thead><tbody>${sqRows}</tbody></table></div>`)
    :(evRows?`<div class="obs"><b>Today&rsquo;s &plusmn;8% movers in F&O</b><span>Event-driven. Check the news before fading or chasing.</span></div>
     <div class="tw"><table><thead><tr><th class="d">Symbol</th><th>Change</th><th>Price</th></tr></thead><tbody>${evRows}</tbody></table></div>`
     :`<div class="cap">No F&O stock moved more than 8% today. On event-heavy days (results, news) this list populates.</div>`)}
@@ -1082,6 +1109,45 @@ function verdict(A,greens,reds){
 function regimeBadge(){const A=ACTIONS;const b=document.getElementById('rbadge');if(!b||!A)return;
  b.textContent=A.regime;b.style.background=RCOL[A.regime]||'#3a444d';
  b.style.color=(A.regime==='Normal'||A.regime==='Defensive')?'#1a1205':'#08110c';}
+function refreshReminder(){const F=(typeof FW!=='undefined')?FW:{};
+ if(!F.built)return `<div class="rmd"><b>Framework data not loaded.</b> Upload your Screener CSVs to <code>frameworks/</code> in the repo. See the refresh checklist in Reference.</div>`;
+ const built=new Date(F.built),days=Math.floor((Date.now()-built)/86400000);
+ const ss=F.superstar_present?'':' &middot; superstar list not yet added (placeholder)';
+ if(days>=90)return `<div class="rmd on"><b>&#9888; Framework data is ${days} days old.</b> Refresh your Screener exports (and superstar list) &mdash; fundamentals update each results season. See the checklist in Reference.${ss}</div>`;
+ if(!F.superstar_present)return `<div class="rmd soft">Framework data ${days}d old &middot; superstar list not yet added (placeholder, optional).</div>`;
+ return '';}
+function changesStrip(){const C=(typeof CHANGES!=='undefined')?CHANGES:{};
+ if(!C.changes||!C.changes.length)return `<div class="chgstrip quiet"><span class="cl">What changed</span><span style="color:var(--dim)">Quiet since ${C.prev_asof||'last run'} \u2014 nothing material moved</span></div>`;
+ const bk={invest:'#6f9fd8',trade:'#d8b34a',both:'#6fd39a'};
+ return `<div class="chgstrip"><span class="cl">What changed</span>${C.changes.map(c=>
+  `<span class="chip2" style="border-color:${bk[c.book]||'#555'}"><b style="color:${bk[c.book]||'#999'}">${c.tag}</b> ${c.msg}</span>`).join('')}</div>`;}
+function insightsPanel(A,greens,reds){
+ // succinct cross-book read, keyword style, auto-generated
+ const T=(typeof TRADER!=='undefined')?TRADER:{},v=(T.index&&T.index.vix)||{};
+ const nifty=(T.index&&T.index.indices||[]).find(i=>i.tag==='NIFTY50')||{};
+ const pr=DATA[A.primary==='Liquid'?'LIQUID':'ALL'],row=pr?pr.rows[0]:null;
+ const a10=row?gv(row,'pct_above_10dma'):null,a50=row?gv(row,'pct_above_50dma'):null;
+ const inv=[],trd=[],cross=[];
+ // investing keywords
+ if(a50!=null)inv.push(`50 DMA ${a50.toFixed(0)}%`);
+ if(a10!=null&&a50!=null){const g=a10-a50;inv.push(g<-10?`short-term soft (${g.toFixed(0)})`:g>10?`short-term hot (+${g.toFixed(0)})`:'short-term neutral');}
+ inv.push(A.regime==='Aggressive'?'press':A.regime==='Defensive'||A.regime==='Stand aside'?'defend':'selective');
+ // trading keywords
+ if(v.ivrank!=null)trd.push(v.ivrank<=30?`options cheap (IVR ${v.ivrank})`:v.ivrank>=70?`options rich (IVR ${v.ivrank})`:`vol mid (IVR ${v.ivrank})`);
+ if(nifty.state)trd.push(`Nifty ${nifty.state}`);
+ if(v.exp_move_1w_pts)trd.push(`\u00b11wk \u2248${v.exp_move_1w_pts} pts`);
+ const fired=(T.fno&&T.fno.fired)||[];if(fired.length)trd.push(`${fired.length} coil fires`);
+ // cross-book synthesis
+ const weakening=a10!=null&&a50!=null&&(a10<a50-8);
+ const cheapCoil=v.ivrank!=null&&v.ivrank<=30&&nifty.state==='squeeze';
+ if(weakening&&cheapCoil)cross.push('Breadth leaking + cheap vol + Nifty coiled \u2014 calm before a move. Invest: hold/trim. Trade: own optionality, watch fires.');
+ else if(cheapCoil)cross.push('Cheap vol + Nifty coiled \u2014 expansion setup loading. Own optionality over selling premium.');
+ else if(A.regime==='Aggressive'&&v.ivrank>=70)cross.push('Strong breadth + rich vol \u2014 favour selling premium into strength.');
+ return `<div class="insights">
+  <div class="ins"><span class="il" style="color:#6f9fd8">INVEST</span> ${inv.join(' \u00b7 ')}</div>
+  <div class="ins"><span class="il" style="color:#d8b34a">TRADE</span> ${trd.join(' \u00b7 ')}</div>
+  ${cross.length?`<div class="ins cross"><span class="il" style="color:#6fd39a">READ</span> ${cross.join(' ')}</div>`:''}
+ </div>`;}
 function todayPane(){const A=ACTIONS;const el=document.getElementById('p-today');
  if(!A||!A.checks){el.innerHTML='<div class="card"><h3>Today</h3><div class="cap">No data.</div></div>';return}
  const dot=s=>`<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${s==='green'?'#3f9a63':s==='amber'?'#d8b34a':'#c2503c'};margin-right:7px;vertical-align:0"></span>`;
@@ -1108,6 +1174,9 @@ function todayPane(){const A=ACTIONS;const el=document.getElementById('p-today')
    <div class="vsub">${vs}</div></div>
   <div class="vright"><div class="vreg" style="color:${RCOL[A.regime]}">${A.regime}</div>
    <div class="vmeta">${A.primary} &middot; ${greens} green / ${reds} red checks</div></div></div>
+ ${refreshReminder()}
+ ${changesStrip()}
+ ${insightsPanel(A,greens,reds)}
  ${ex}
  <div class="grid2">
   <div class="card"><h3>Checklist</h3><table class="runs"><tbody>${checks}</tbody></table>
@@ -1132,6 +1201,12 @@ function todayPane(){const A=ACTIONS;const el=document.getElementById('p-today')
   </tbody></table></div>`;}
 
 function referencePane(){document.getElementById('p-reference').innerHTML=`
+ <div class="gs" style="grid-column:1/-1;border-color:#a07a30"><h4 style="color:#e0c68a">Framework refresh checklist &mdash; every quarter</h4>
+  <dl><dt>Why quarterly</dt><dd>The Playbook frameworks are fundamental screens (ROCE, EPS growth, Piotroski, cash conversion). Fundamentals only move when results are declared, which is quarterly in India. So refresh a few weeks after each results season, once reporting is largely complete: <b>mid-Feb</b> (Q3), <b>mid-May</b> (Q4/annual, the most important), <b>mid-Aug</b> (Q1), <b>mid-Nov</b> (Q2). The dashboard shows a red reminder once the data passes 90 days.</dd>
+  <dt>How to refresh</dt><dd>1. In Screener, re-run each of your 8 saved screens and export the CSV. 2. In the repo, open <code>frameworks/</code>, click each file, pencil icon, select-all, delete, paste the new CSV, commit. Same method you used to upload them. 3. The bridge updates on the next pipeline run; the red reminder clears automatically.</dd>
+  <dt>The 8 frameworks</dt><dd>Coffee Can, Consistent Compounder, GARP, Cash-is-King, Peter Lynch, Vijay Malik, Piotroski, 100-Bagger.</dd>
+  <dt>Superstar list (placeholder)</dt><dd>Not yet active. When the superstar-tracker can export a symbol list, save it as <code>frameworks/superstar.csv</code> with an <code>NSE Code</code> column and it maps automatically alongside the others, on the same quarterly cadence. Until then this slot is a documented placeholder.</dd>
+  <dt>Keep the header row</dt><dd>Each CSV must keep its <code>NSE Code</code> column header. The bridge reads that column; nothing else in the file matters to it.</dd></dl></div>
  <div class="gs"><h4>Primary sources on this methodology</h4><table class="two"><tbody>
   <tr><td>Stockbee Market Monitor page</td><td>stockbee.blogspot.com/p/mm.html</td></tr>
   <tr><td>Using breadth to avoid crashes (2011)</td><td>stockbee.blogspot.com/2011/08/how-to-use-market-breadth-to-avoid.html</td></tr>
