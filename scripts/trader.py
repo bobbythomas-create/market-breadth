@@ -49,6 +49,18 @@ def atr(df, window=14):
     return (tr.rolling(window).mean() / c) * 100
 
 
+# Qullamaggie ADR: 20-day average of (high/low - 1). India-calibrated floor is 4-5%
+# (US uses 3%, which is the Indian median and no filter at all). We flag >=4%.
+ADR_WINDOW = 20
+ADR_FLOOR = 4.0        # India momentum threshold, measured on this store
+
+
+def adr_pct(df, window=ADR_WINDOW):
+    h, l = df["high"], df["low"]
+    daily = (h / l - 1.0) * 100
+    return daily.rolling(window).mean()
+
+
 def pctile(series, value):
     s = series.dropna()
     if len(s) < 20 or pd.isna(value):
@@ -178,8 +190,14 @@ def fno_block(prices, fno):
         # trend lean: price vs its 50-session mean
         m50 = g["close"].tail(50).mean()
         lean = "up" if c["close"] > m50 else "dn"
+        # ADR + extension: today's absolute move as a multiple of ADR
+        adr = adr_pct(g).iloc[-1]
+        adr_v = None if pd.isna(adr) else round(float(adr), 2)
+        ext_mult = None if (adr_v is None or adr_v == 0) else round(abs(chg) / adr_v, 2)
         rec = {"s": sym, "atr_pctile": pr, "atr_pct": round(float(cur), 2),
-               "px": round(float(c["close"]), 1), "chg": round(chg, 1), "lean": lean}
+               "px": round(float(c["close"]), 1), "chg": round(chg, 1), "lean": lean,
+               "adr": adr_v, "ext": ext_mult,
+               "hi_adr": bool(adr_v is not None and adr_v >= ADR_FLOOR)}
         recs.append(rec)
         # fire: percentile 5 sessions ago was <=15, now >=35, i.e. it broke out of the coil
         if len(a) > 6:
