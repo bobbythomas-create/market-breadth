@@ -541,8 +541,10 @@ tr.grp th{top:0;font-size:8px;letter-spacing:.14em;text-transform:uppercase;font
  padding:3px 4px;color:var(--dim);border-bottom:1px solid var(--rule)}
 tr.col th{top:19px;font-size:9.5px;font-weight:600;padding:3px 4px;text-align:right;white-space:nowrap;color:#9fb0bc}
 th.gs,td.gs{border-left:2px solid var(--rule)}
-td{padding:2px 4px;text-align:right;white-space:nowrap;border-bottom:1px solid #202931;color:#0d1216;font-weight:600}
+td{padding:2px 4px;text-align:right;white-space:nowrap;border-bottom:1px solid #202931;color:#c3ced6;font-weight:400}
 td.nb{color:var(--ink);font-weight:400}
+.tvb{font-size:10.5px;padding:4px 11px;border:1px solid #2c6b45;background:#132a1e;color:#6fd39a;border-radius:3px;cursor:pointer;font-weight:600;margin:0 4px 6px 0}
+.tvb:hover{background:#183a26}
 td.nar,th.nar{max-width:38px}
 td.d,th.d{text-align:left;position:sticky;left:0;background:var(--pnl);z-index:1;color:var(--ink);
  border-right:2px solid var(--rule);font-weight:600;padding-left:7px}
@@ -689,6 +691,7 @@ footer{margin-top:9px;color:var(--dim);font-size:10px;line-height:1.55}
 <div class="pane" id="p-reference"></div>
 
 <footer id="ft"></footer></div>
+<div id="tvmsg" style="position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#183a26;border:1px solid #2c6b45;color:#6fd39a;padding:8px 16px;border-radius:4px;font-size:12px;opacity:0;transition:opacity .2s;z-index:20;pointer-events:none;max-width:90vw"></div>
 <div id="ov"><div id="bx"><h3 id="bh"></h3><div class="sub" id="bs"></div><div class="sy" id="by"></div>
 <button onclick="document.getElementById('ov').classList.remove('on')">Close</button></div></div>
 <script>
@@ -713,7 +716,7 @@ function clr(s){if(s==null)return'transparent';let a=ST[0],b=ST[ST.length-1];
  const t=(s-a[0])/(b[0]-a[0]||1);
  return`rgb(${(a[1]+t*(b[1]-a[1]))*255|0},${(a[2]+t*(b[2]-a[2]))*255|0},${(a[3]+t*(b[3]-a[3]))*255|0})`}
 const bc=v=>clr(Math.max(0,Math.min(1,v/100)));
-const txtDark=s=>s!=null&&(s<0.38||s>0.62);
+const cellText=s=>{if(s==null)return "";return (s<0.28||s>0.74)?"#f0f4f6":"#14201a";};
 const fmt=(k,v)=>v==null?'':k==='nifty_close'?v.toLocaleString('en-IN',{maximumFractionDigits:0})
  :k==='hl_ratio'?v.toFixed(2):(k==='ratio_5d'||k==='ratio_10d')?v.toFixed(1)
  :k.startsWith('pct_')?v.toFixed(0):k==='nifty_chg_pct'?v.toFixed(2):v;
@@ -744,6 +747,17 @@ function tabs(){
  document.addEventListener('click',()=>mm.classList.remove('on'));}
 
 /* ---- table pane ---- */
+/* ---- TradingView export (used across all tabs/subtabs) ---- */
+function tvCopy(syms,label){
+ syms=syms.filter(Boolean);
+ const txt=syms.map(s=>'NSE:'+s).join(',');
+ const done=()=>{const b=document.getElementById('tvmsg');if(b){b.textContent=(label||'Copied')+': '+syms.length+' symbols \u2192 clipboard (NSE: format, paste into a TradingView watchlist)';b.style.opacity='1';setTimeout(()=>b.style.opacity='0',3500);}};
+ if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(done,()=>tvFallback(txt,done));}
+ else tvFallback(txt,done);
+}
+function tvFallback(txt,cb){const t=document.createElement('textarea');t.value=txt;t.style.position='fixed';t.style.opacity='0';document.body.appendChild(t);t.select();try{document.execCommand('copy');}catch(e){}document.body.removeChild(t);cb&&cb();}
+function tvChip(syms,label){const arr=JSON.stringify(syms);return `<button class="tvb" onclick='tvCopy(${arr},"${label}")'>&#128203; ${label} (${syms.length}) &rarr; TradingView</button>`;}
+
 /* ---- screen ---- */
 /* ---- trader ---- */
 let SQTAB='squeeze';let XKIND='all';
@@ -781,17 +795,21 @@ function traderPane(){const T=TRADER,el=document.getElementById('p-trader');
  const noOhlc=!fb.has_ohlc;
  el.innerHTML=`
  <div class="note">Volatility context for F&O. Every gauge here is a regime read, not a signal to enter. Confirm with your own chart, option chain and event calendar. Data ${T.asof||''}.</div>
+
  ${vixCard}
  <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:9px">${idxCards}</div>
  <div class="card">
   <div style="display:flex;gap:4px;margin-bottom:8px">
    <button class="sb ${SQTAB==='squeeze'?'on':''}" onclick="SQTAB='squeeze';traderPane()">Squeeze scan</button>
    <button class="sb ${SQTAB==='events'?'on':''}" onclick="SQTAB='events';traderPane()">&plusmn;8% events</button></div>
-  ${(fb.fired&&fb.fired.length)?`<div class="obs" style="margin-bottom:8px"><b style="color:#d8b34a">Squeeze FIRES today \u2014 coil just broke</b>${fb.fired.slice(0,10).map(f=>`<span>${f.s} <span style="color:${f.lean==='up'?'#6fd39a':'#e07a63'}">${f.lean==='up'?'\u2191':'\u2193'}</span> ${f.chg>0?'+':''}${f.chg}%</span>`).join('')}</div>`:''}
+  ${(fb.fired&&fb.fired.length)?`<div style="margin-bottom:6px">${tvChip(fb.fired.map(f=>f.s),'Squeeze fires')}</div><div class="obs" style="margin-bottom:8px"><b style="color:#d8b34a">Squeeze FIRES today \u2014 coil just broke</b>${fb.fired.slice(0,10).map(f=>`<span>${f.s} <span style="color:${f.lean==='up'?'#6fd39a':'#e07a63'}">${f.lean==='up'?'\u2191':'\u2193'}</span> ${f.chg>0?'+':''}${f.chg}%</span>`).join('')}</div>`:''}
   ${SQTAB==='squeeze'?(noOhlc?`<div class="cap">Stock squeeze scan needs the OHLC-widened price store. It activates one backfill re-run after you deploy the new ingest. Until then, index squeeze (above) and event movers work.</div>`
     :`<div class="obs"><b>Most coiled F&O stocks</b><span>Lowest ATR percentile = tightest range = expansion setup loading</span></div>
-    <div class="tw" style="max-height:52vh"><table><thead><tr><th class="d">Symbol</th><th>ATR %ile</th><th>ATR%</th><th>Lean</th><th>Price</th><th>Day%</th></tr></thead><tbody>${sqRows}</tbody></table></div>`)
+    <div class="cap" style="margin-bottom:5px">ADR = 20-day average daily range (Qullamaggie). India floor 4% (green) isolates real momentum; below that a name is too quiet to expand much. Ext = today&rsquo;s move &divide; ADR: under 0.5x has room, over 1x is already extended (wait or pass).</div>
+    <div style="margin-bottom:6px">${tvChip((fb.squeeze||[]).slice(0,30).map(x=>x.s),'Coiled F&O')} ${tvChip((fb.squeeze||[]).filter(x=>x.hi_adr&&(x.ext==null||x.ext<1)).map(x=>x.s),'Coiled + high-ADR, not extended')}</div>
+    <div class="tw" style="max-height:52vh"><table><thead><tr><th class="d">Symbol</th><th>ATR %ile</th><th>ADR</th><th>Ext</th><th>Lean</th><th>Price</th><th>Day%</th></tr></thead><tbody>${sqRows}</tbody></table></div>`)
    :(evRows?`<div class="obs"><b>Today&rsquo;s &plusmn;8% movers in F&O</b><span>Event-driven. Check the news before fading or chasing.</span></div>
+    <div style="margin-bottom:6px">${tvChip((fb.events||[]).map(e=>e.s),'Events')}</div>
     <div class="tw"><table><thead><tr><th class="d">Symbol</th><th>Change</th><th>Price</th></tr></thead><tbody>${evRows}</tbody></table></div>`
     :`<div class="cap">No F&O stock moved more than 8% today. On event-heavy days (results, news) this list populates.</div>`)}
  </div>`;}
@@ -801,6 +819,13 @@ function fwList(sym){return (FW&&FW.map&&FW.map[sym])||[];}
 function fwCell(sym){const l=fwList(sym);if(!l.length)return '<span style="color:#4a5560">&mdash;</span>';
  const col=l.length>=3?'#6fd39a':l.length>=2?'#c3d68a':'#9fb0bc';
  return `<span style="color:${col}" title="${l.join(', ')}">${l.length>=2?'\u2605 ':''}${l.length} fw</span>`;}
+function currentScreenRows(){if(!STOCKS||!STOCKS.stocks)return [];
+ let r=STOCKS.stocks.filter(x=>SCRSTRICT?x.strict:true);
+ if(SCRFW)r=r.filter(x=>fwList(x.s).length>0);
+ if(SCRSEC!=='ALL')r=r.filter(x=>x.sec===SCRSEC);
+ const mkey={rsu:'mru',rss:'mrs',rsn:'mrn'}[RSMODE];
+ const gv2=x=>RSTYPE==='mans'?(x[mkey]?x[mkey][0]:null):x[RSMODE];
+ return r.slice().sort((a,b)=>{const av=gv2(a),bv=gv2(b);if(av==null)return 1;if(bv==null)return -1;return bv-av;});}
 function screenPane(){const el=document.getElementById('p-screen');
  if(!STOCKS||!STOCKS.stocks){el.innerHTML='<div class="card"><h3>Stock screen</h3><div class="cap">stocks.json not found. Run screen.py in the pipeline after ingest to generate the Stage-2 / RS screen.</div></div>';return}
  const A=ACTIONS;
@@ -817,7 +842,7 @@ function screenPane(){const el=document.getElementById('p-screen');
   if(av==null&&bv==null)return 0;if(av==null)return 1;if(bv==null)return -1;return bv-av;});
  const cap=rows.length;rows=rows.slice(0,120);
  const stg={'2':'#3f9a63','1':'#9c9a30','3':'#d8875a','4':'#c2503c','?':'#5d6b63'};
- const rcell=v=>v==null?'<td class="nb">&mdash;</td>':`<td style="background:${clr(Math.max(0,Math.min(1,(v-1)/98)))};${(v<38||v>62)?'color:#e8eef2':''}">${v}</td>`;
+ const rcell=v=>{if(v==null)return '<td class="nb">&mdash;</td>';const sh=Math.max(0,Math.min(1,(v-1)/98));return `<td style="background:${clr(sh)};color:${cellText(sh)}">${v}</td>`;};
  const mcell=m=>{if(!m)return '<td class="nb">&mdash;</td>';const v=m[0],up=m[1]>0;
   const col=v>0?(up?'#6fd39a':'#c3d68a'):(up?'#e8b979':'#e07a63');
   return `<td class="nb" style="color:${col}" title="${up?'rising':'falling'}">${v>0?'+':''}${v.toFixed(0)}${up?'\u2191':'\u2193'}</td>`;};
@@ -847,7 +872,8 @@ ${RSTYPE==='mans'?(mcell(x.mru)+mcell(x.mrs)+mcell(x.mrn)):(rcell(x.rsu)+rcell(x
   <div class="seg"><span class="sl">Playbook</span>
    <button class="sb ${!SCRFW?'on':''}" onclick="SCRFW=false;screenPane()">All</button>
    <button class="sb ${SCRFW?'on':''}" onclick="SCRFW=true;screenPane()">In a framework</button></div>
-  <select onchange="SCRSEC=this.value;screenPane()" style="margin-left:auto">
+  <button class="tvb" style="margin-left:auto" onclick='tvCopy(currentScreenRows().map(x=>x.s),"Screen")'>&#128203; Copy list &rarr; TradingView</button>
+  <select onchange="SCRSEC=this.value;screenPane()">
    <option value="ALL"${SCRSEC==='ALL'?' selected':''}>All sectors</option>
    ${secs.map(sc=>`<option value="${sc}"${SCRSEC===sc?' selected':''}>${sc}</option>`).join('')}</select>
  </div>
@@ -898,7 +924,7 @@ function head(){const g=['<th class="d" rowspan="2">Date</th><th rowspan="2">Fla
 function body(d){document.querySelector('#t tbody').innerHTML=(N?d.rows.slice(0,N):d.rows).map(r=>{
  const td=[];GROUPS.forEach(([gl,cs],i)=>cs.forEach(([k,l,lk],j)=>{const s=gc(r,k),vv=gv(r,k);
   const cl=[!j&&i?'gs':'',NARROW.has(k)?'nar':'',s==null?'nb':'',lk&&vv>0?'lk':''].filter(Boolean).join(' ');
-  td.push(`<td class="${cl}" style="${s==null?'':'background:'+clr(s)+(txtDark(s)?';color:#e8eef2':'')}"${
+  td.push(`<td class="${cl}" style="${s==null?'':'background:'+clr(s)+';color:'+cellText(s)}"${
    lk&&vv>0?` data-i="${r[ISO_]}" data-k="${lk}"`:''}>${fmt(k,vv)}</td>`)}));
  return`<tr><td class="d">${r[D_]} ${r[WD_]}</td><td class="fg">${
   r[F_].map(f=>`<span class="fl ${f.split(' ')[0]}">${f}</span>`).join('')}</td>${td.join('')}</tr>`}).join('');
@@ -1144,8 +1170,8 @@ function insightsPanel(A,greens,reds){
  else if(cheapCoil)cross.push('Cheap vol + Nifty coiled \u2014 expansion setup loading. Own optionality over selling premium.');
  else if(A.regime==='Aggressive'&&v.ivrank>=70)cross.push('Strong breadth + rich vol \u2014 favour selling premium into strength.');
  return `<div class="insights">
-  <div class="ins"><span class="il" style="color:#6f9fd8">INVEST</span> ${inv.join(' \u00b7 ')}</div>
-  <div class="ins"><span class="il" style="color:#d8b34a">TRADE</span> ${trd.join(' \u00b7 ')}</div>
+  <div class="ins"><span class="il" style="color:#6f9fd8">INVEST</span> ${inv.join(' \u00b7 ')} <a class="jl" onclick="jump('screen')">screen &rarr;</a></div>
+  <div class="ins"><span class="il" style="color:#d8b34a">TRADE</span> ${trd.join(' \u00b7 ')} ${trd.length?`<a class="jl" onclick="jump('trader')">trader tab &rarr;</a>`:''}</div>
   ${cross.length?`<div class="ins cross"><span class="il" style="color:#6fd39a">READ</span> ${cross.join(' ')}</div>`:''}
  </div>`;}
 function todayPane(){const A=ACTIONS;const el=document.getElementById('p-today');
