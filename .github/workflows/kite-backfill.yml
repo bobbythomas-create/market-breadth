@@ -1,0 +1,59 @@
+name: Kite Backfill (one-time historical)
+
+# Run manually from the Actions tab. Paste the request_token when you trigger it.
+on:
+  workflow_dispatch:
+    inputs:
+      request_token:
+        description: "Paste the request_token from the login redirect URL"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install kiteconnect pandas pyarrow numpy requests
+
+      - name: Run Kite backfill (2019 -> present gap)
+        env:
+          KITE_API_KEY: xcg86l92nk6782fk
+          KITE_API_SECRET: ${{ secrets.KITE_API_SECRET }}
+          KITE_REQUEST_TOKEN: ${{ inputs.request_token }}
+          BACKFILL_START: "2019-01-01"
+        run: python scripts/kite_backfill.py
+
+      - name: Rebuild breadth history from the enlarged store
+        run: python scripts/ingest.py --recompute
+
+      # Bank the expensive result FIRST, before the CSV step runs.
+      - name: Commit the backfill and breadth
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add -A data/prices.parquet data/breadth_history.csv data/lists
+          git commit -m "Kite backfill: 2019+ daily OHLC, breadth recomputed" || echo "no changes"
+          git push
+
+      # CSV export is derived and read-only; if it fails the backfill is already safe.
+      - name: Export portable CSV copy
+        run: python scripts/export_csv.py
+
+      - name: Commit the portable CSV copy
+        run: |
+          git add -A data/csv
+          git commit -m "Portable CSV export of price store" || echo "no changes"
+          git push
