@@ -1,0 +1,35 @@
+name: Export CSV copy (no secret needed)
+
+# Re-run anytime to regenerate the portable CSV files from the parquet store.
+# Read-only on prices.parquet; cannot corrupt the store.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install pandas pyarrow
+
+      - name: Export portable CSV copy
+        run: python scripts/export_csv.py
+
+      - name: Commit the portable CSV copy
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add -A data/csv
+          git commit -m "Regenerate portable CSV export" || echo "no changes"
+          git push
