@@ -638,6 +638,13 @@ canvas.gr{width:150px;height:10px;border-radius:2px}
 .insights{border:1px solid var(--rule);background:var(--pnl);border-radius:3px;padding:8px 12px;margin-bottom:9px}
 .ins{font-size:12px;line-height:1.6;color:#c3ced6}
 .ins.cross{margin-top:4px;padding-top:5px;border-top:1px solid var(--rule);color:var(--ink)}
+.mread{background:#141c22;border:1px solid var(--rule);border-left:3px solid var(--acc);border-radius:3px;
+ padding:9px 13px;margin-bottom:9px;font-size:12px;line-height:1.55}
+.mread .mr-line{color:#c3ced6;margin-bottom:4px}
+.mread .mr-line:last-of-type{margin-bottom:0}
+.mread .mr-inv b{color:#8fb8e8}
+.mread .mr-trd{color:#c9c3a8}
+.mread .mr-cap{color:var(--dim);font-size:10px;margin-top:5px}
 .il{font-size:8.5px;letter-spacing:.1em;font-weight:700;margin-right:8px;display:inline-block;min-width:44px}
 .rmd{border-radius:3px;padding:8px 12px;margin-bottom:9px;font-size:12px;line-height:1.5}
 .rmd.on{background:#3a1512;border:1.5px solid #c2503c;color:#f0b8ab}
@@ -1147,6 +1154,52 @@ function changesStrip(){const C=(typeof CHANGES!=='undefined')?CHANGES:{};
  const bk={invest:'#6f9fd8',trade:'#d8b34a',both:'#6fd39a'};
  return `<div class="chgstrip"><span class="cl">What changed</span>${C.changes.map(c=>
   `<span class="chip2" style="border-color:${bk[c.book]||'#555'}"><b style="color:${bk[c.book]||'#999'}">${c.tag}</b> ${c.msg}</span>`).join('')}</div>`;}
+
+function narrativeRead(){
+ const A=(typeof ACTIONS!=='undefined')?ACTIONS:{};
+ const T=(typeof TRADER!=='undefined')?TRADER:{};
+ const v=(T.index&&T.index.vix)||{};
+ const nifty=(T.index&&T.index.indices||[]).find(i=>i.tag==='NIFTY50')||{};
+ const prim=A.primary==='Liquid'?'LIQUID':'ALL';
+ const g=(typeof DATA!=='undefined')?DATA[prim]:null;
+ if(!g||!g.rows||!g.rows.length)return '';
+ const rows=g.rows; const r0=rows[0];
+ const a50=gv(r0,'pct_above_50dma'),a10=gv(r0,'pct_above_10dma');
+ // 5-session 10DMA trend
+ let a10trend='';
+ if(rows.length>=5){const now=gv(rows[0],'pct_above_10dma'),then=gv(rows[4],'pct_above_10dma');
+  if(now!=null&&then!=null){const d=now-then; a10trend=d>=6?'recovering':d<=-6?'rolling over':'flat';}}
+ const net4=gv(r0,'net_4pct');
+ // small caps
+ const sc=(typeof DATA!=='undefined'&&DATA.SMALLCAP250)?gv(DATA.SMALLCAP250.rows[0],'pct_above_50dma'):null;
+ // regime words
+ const reg=A.regime||'Normal';
+ // ---- build INVEST sentence ----
+ let inv='';
+ const trendWord=a10trend==='recovering'?'short-term breadth is recovering':a10trend==='rolling over'?'short-term breadth is rolling over':'short-term breadth is flat';
+ inv=`Investing: regime <b>${reg}</b>. ${A.primary} at ${a50!=null?a50.toFixed(0):'--'}% above the 50 DMA, ${trendWord} (10 DMA ${a10!=null?a10.toFixed(0):'--'}%). Net 4% ${net4>0?'+':''}${net4}.`;
+ if(sc!=null)inv+=` Small-caps ${sc.toFixed(0)}%${sc<45?', still the soft spot':''}.`;
+ inv+=` Read: ${reg==='Aggressive'?'press exposure':reg==='Defensive'||reg==='Stand aside'?'stay defensive':'hold, be selective'}.`;
+ // ---- build TRADE sentence ----
+ let trd='';
+ const vixWord=v.ivrank==null?'':v.ivrank<=20?'options very cheap':v.ivrank<=35?'options cheap':v.ivrank>=70?'options rich':'vol mid-range';
+ const fired=(T.fno&&T.fno.fired)||[];
+ if(v.level!=null){
+  trd=`Trading: India VIX ${v.level} (IV Rank ${v.ivrank}), ${vixWord}. Nifty ${nifty.state||'--'}${nifty.state==='squeeze'?' (coiled)':''}.`;
+  const cheapCoil=v.ivrank!=null&&v.ivrank<=35&&nifty.state==='squeeze';
+  if(cheapCoil&&a10trend==='recovering')trd+=` Cheap vol + coil + firming breadth: expansion setup leaning up. Favour owning optionality over selling premium.`;
+  else if(cheapCoil)trd+=` Cheap vol + coil: expansion setup loading. Own optionality.`;
+  else if(v.ivrank>=70)trd+=` Rich vol: premium-selling favoured into strength.`;
+  if(v.exp_move_1w_pts)trd+=` Expected 1-week move \u00b1${v.exp_move_1w_pts} pts.`;
+  if(fired.length)trd+=` ${fired.length} squeeze fires today.`;
+ }
+ return `<div class="mread">
+   <div class="mr-line mr-inv">${inv}</div>
+   ${trd?`<div class="mr-line mr-trd">${trd}</div>`:''}
+   <div class="mr-cap">Auto-generated read, ${g.asof||''}. Research context, not advice. <a class="jl" onclick="jump('today')">full dashboard &rarr;</a></div>
+ </div>`;
+}
+
 function insightsPanel(A,greens,reds){
  // succinct cross-book read, keyword style, auto-generated
  const T=(typeof TRADER!=='undefined')?TRADER:{},v=(T.index&&T.index.vix)||{};
@@ -1336,20 +1389,32 @@ async function show(iso,k){const o=document.getElementById('ov');
 
 /* ---- draw ---- */
 function jump(t){selectTab(t);}
+function injectRead(paneId){
+ if(TAB==='today')return; // today already shows the full read
+ const pane=document.getElementById(paneId);if(!pane)return;
+ const html=narrativeRead();if(!html)return;
+ // remove any prior read, then prepend
+ const old=pane.querySelector(':scope > .mread');if(old)old.remove();
+ pane.insertAdjacentHTML('afterbegin',html);
+}
 function draw(){const d=DATA[U];
  regimeBadge();
- if(TAB==='today')return todayPane();
- if(TAB==='screen')return screenPane();
- if(TAB==='trader')return traderPane();
- if(TAB==='reference')return referencePane();
- if(TAB==='guide')return guidePane();
- if(TAB==='regime')return regimePane();
- if(TAB==='segments')return comparePane();
- if(TAB==='sectors')return sectorPane();
+ if(TAB==='today'){todayPane();return;}
+ if(TAB==='screen'){screenPane();injectRead('p-screen');return;}
+ if(TAB==='trader'){traderPane();injectRead('p-trader');return;}
+ if(TAB==='reference'){referencePane();injectRead('p-reference');return;}
+ if(TAB==='guide'){guidePane();injectRead('p-guide');return;}
+ if(TAB==='regime'){regimePane();injectRead('p-regime');return;}
+ if(TAB==='segments'){comparePane();injectRead('p-segments');return;}
+ if(TAB==='sectors'){sectorPane();injectRead('p-sectors');return;}
  if(!d)return;
- if(TAB==='table'){pills(d);bars(d);obsP(d);body(d)}
+ if(TAB==='table'){pills(d);bars(d);obsP(d);body(d);}
  else if(TAB==='charts')chartPane();
- else if(TAB==='scanner')scannerPane()}
+ else if(TAB==='scanner')scannerPane();
+ // table/charts/scanner share the p-table etc; inject into their pane
+ const pmap={table:'p-table',charts:'p-charts',scanner:'p-scanner'};
+ if(pmap[TAB])injectRead(pmap[TAB]);
+}
 document.getElementById('rows').onchange=e=>{N=+e.target.value;body(DATA[U])};
 document.getElementById('ov').onclick=e=>{if(e.target.id==='ov')e.currentTarget.classList.remove('on')};
 document.getElementById('ft').innerHTML='Source: NSE UDiFF bhavcopy, series EQ. Prices chained on close over previous close, so splits and bonuses are adjusted. F&amp;O and index segments are point-in-time from NSE constituent files. Thresholds are calibrated on this dashboard&rsquo;s own Indian history, not imported from US studies. Research tooling, not investment advice.';
