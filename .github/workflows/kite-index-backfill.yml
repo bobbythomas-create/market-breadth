@@ -1,0 +1,57 @@
+name: Kite Index Backfill (one-time historical)
+
+# Run manually from the Actions tab. Paste the request_token when you trigger it.
+# Pulls index history (Nifty 50, Next 50, Midcap 150, Nifty 500, Bank Nifty, India VIX)
+# for 2019 -> the day before your existing index data begins, then rebuilds breadth.
+on:
+  workflow_dispatch:
+    inputs:
+      request_token:
+        description: "Paste the request_token from the login redirect URL"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  index-backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90          # index pull is seconds; the recompute is the long part (~30 min)
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install kiteconnect pandas pyarrow numpy requests
+
+      - name: Pull index history (2019 -> present gap)
+        env:
+          KITE_API_KEY: ${{ secrets.KITE_API_KEY }}
+          KITE_API_SECRET: ${{ secrets.KITE_API_SECRET }}
+          KITE_REQUEST_TOKEN: ${{ inputs.request_token }}
+          BACKFILL_START: "2019-01-01"
+        run: python scripts/kite_index_backfill.py
+
+      # Bank the index files FIRST, before the recompute can fail.
+      - name: Commit index files (bank the pull)
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add -A data/indices.parquet data/index_ohlc.parquet
+          git commit -m "Kite index backfill: 2019+ index history" || echo "no changes"
+          git push
+
+      - name: Rebuild breadth history from the enlarged index store
+        run: python scripts/ingest.py --recompute
+
+      - name: Commit breadth history
+        run: |
+          git add -A data/breadth_history.csv data/validation.txt data/lists
+          git commit -m "Recompute breadth with 2019+ Nifty close" || echo "no changes"
+          git push
