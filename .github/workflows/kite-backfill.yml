@@ -1,7 +1,6 @@
 name: Kite Backfill (one-time historical)
 
-# Run manually from the Actions tab. Paste the request_token when you trigger it,
-# and pick the universe (store = fast, all = full ~18k).
+# Run manually from the Actions tab. Paste the request_token, pick the universe.
 on:
   workflow_dispatch:
     inputs:
@@ -10,7 +9,7 @@ on:
         required: true
         type: string
       universe:
-        description: "store = ~2k in-store symbols (~25 min) | all = ~18k NSE EQ (~3h)"
+        description: "store = ~2.6k in-store symbols (~30 min) | all = ~18k NSE EQ (~3h)"
         required: true
         type: choice
         default: store
@@ -24,7 +23,7 @@ permissions:
 jobs:
   backfill:
     runs-on: ubuntu-latest
-    timeout-minutes: 350          # store mode finishes in ~25 min; headroom for 'all'
+    timeout-minutes: 350
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -46,19 +45,33 @@ jobs:
           BACKFILL_UNIVERSE: ${{ inputs.universe }}
         run: python scripts/kite_backfill.py
 
-      - name: Rebuild breadth history from the enlarged store
-        run: python scripts/ingest.py --recompute
-
-      # Bank the expensive result FIRST, before the CSV step runs.
-      - name: Commit the backfill and breadth
+      # ---- BANK THE EXPENSIVE PULL FIRST, before anything else can fail ----
+      - name: Commit price store (bank the pull)
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add -A data/prices.parquet data/breadth_history.csv data/lists
-          git commit -m "Kite backfill: 2019+ daily OHLC, breadth recomputed" || echo "no changes"
+          git add -A data/prices.parquet
+          git commit -m "Kite backfill: 2019+ daily OHLC (price store)" || echo "no price changes"
           git push
 
-      # CSV export is derived and read-only; if it fails the backfill is already safe.
+      # Second safety net: a downloadable copy even if the push had trouble.
+      - name: Upload price store as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: prices-parquet
+          path: data/prices.parquet
+          retention-days: 7
+      # ---------------------------------------------------------------------
+
+      - name: Rebuild breadth history from the enlarged store
+        run: python scripts/ingest.py --recompute
+
+      - name: Commit breadth history
+        run: |
+          git add -A data/breadth_history.csv data/lists data/validation.txt
+          git commit -m "Recompute breadth over 2019+ store" || echo "no breadth changes"
+          git push
+
       - name: Export portable CSV copy
         run: python scripts/export_csv.py
 
