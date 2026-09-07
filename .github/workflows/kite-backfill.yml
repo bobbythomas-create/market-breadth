@@ -1,6 +1,7 @@
 name: Kite Backfill (one-time historical)
 
-# Run manually from the Actions tab. Paste the request_token when you trigger it.
+# Run manually from the Actions tab. Paste the request_token when you trigger it,
+# and pick the universe (store = fast, all = full ~18k).
 on:
   workflow_dispatch:
     inputs:
@@ -8,6 +9,14 @@ on:
         description: "Paste the request_token from the login redirect URL"
         required: true
         type: string
+      universe:
+        description: "store = ~2k in-store symbols (~25 min) | all = ~18k NSE EQ (~3h)"
+        required: true
+        type: choice
+        default: store
+        options:
+          - store
+          - all
 
 permissions:
   contents: write
@@ -15,7 +24,7 @@ permissions:
 jobs:
   backfill:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 350          # store mode finishes in ~25 min; headroom for 'all'
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -30,10 +39,11 @@ jobs:
 
       - name: Run Kite backfill (2019 -> present gap)
         env:
-          KITE_API_KEY: xcg86l92nk6782fk
+          KITE_API_KEY: ${{ secrets.KITE_API_KEY }}
           KITE_API_SECRET: ${{ secrets.KITE_API_SECRET }}
           KITE_REQUEST_TOKEN: ${{ inputs.request_token }}
           BACKFILL_START: "2019-01-01"
+          BACKFILL_UNIVERSE: ${{ inputs.universe }}
         run: python scripts/kite_backfill.py
 
       - name: Rebuild breadth history from the enlarged store
