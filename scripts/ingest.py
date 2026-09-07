@@ -514,7 +514,7 @@ def validate(b):
         dup = g.duplicated(subset=["date"]).sum()
         if dup:
             issues.append(f"{u}: {dup} duplicate date rows")
-        sig = g[["advances", "declines", "up_4pct", "nifty_close"]].astype(str).agg("|".join, axis=1)
+        sig = g[["advances", "declines", "up_4pct", "nifty_close"]].apply(lambda r: "|".join(str(x) for x in r), axis=1)
         stale = (sig == sig.shift()).sum()
         if stale:
             issues.append(f"{u}: {stale} row(s) identical to previous session (stale copy)")
