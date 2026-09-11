@@ -1,1 +1,1 @@
-{"asof":"2026-09-10","changes":[],"quiet":true,"prev_asof":"2026-09-09"}
+{"asof":"2026-09-11","changes":[{"tag":"REGIME","msg":"Regime Normal -> Defensive","book":"invest"},{"tag":"SQUEEZE FIRE","msg":"5 F&O names broke their coil: COCHINSHIP (dn), BLUESTARCO (dn), ONGC (dn), JSWENERGY (dn), CHOLAFIN (up)","book":"trade"},{"tag":"EVENT","msg":"1 F&O names moved >|8%|: COCHINSHIP -9.2%","book":"trade"}],"quiet":false,"prev_asof":"2026-09-10"}
