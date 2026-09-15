@@ -1,5 +1,5 @@
-generated: 2026-09-14T19:26:29
-sessions: 1909  rows: 35603
+generated: 2026-09-15T18:19:43
+sessions: 1910  rows: 35623
 ALL: universe size jumped >10% on 7 day(s)
 ALL: Nifty close missing on 3 day(s)
 FNO: universe size jumped >10% on 1 day(s)
