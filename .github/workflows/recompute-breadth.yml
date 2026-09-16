@@ -1,0 +1,55 @@
+name: recompute-breadth
+
+# One-click, re-runnable rebuild of the ENTIRE breadth history from the existing
+# price store (data/prices.parquet). Manual only. Use after an ingest.py change
+# (e.g. the 200 DMA / 30-week fix) so old rows are recomputed under the new logic.
+# Does NOT download new sessions; it recomputes what is already stored.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  recompute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install -r requirements.txt
+
+      - name: Recompute breadth from the store
+        run: python scripts/ingest.py --recompute
+
+      - name: Frameworks
+        run: python scripts/frameworks.py --src frameworks || echo "frameworks skipped"
+
+      - name: Screen
+        run: python scripts/screen.py --min-rs 70 || echo "screen step failed, continuing"
+
+      - name: Trader
+        run: python scripts/trader.py || echo "trader step skipped"
+
+      - name: Changes
+        run: python scripts/changes.py || echo "changes skipped"
+
+      - name: Render
+        run: python scripts/render.py --csv data/breadth_history.csv --out dashboard.html --rows 250
+
+      - name: Show validation
+        run: cat data/validation.txt || true
+
+      - name: Commit
+        run: |
+          git config user.name  "breadth-bot"
+          git config user.email "breadth-bot@users.noreply.github.com"
+          git add data/breadth_history.csv data/validation.txt data/lists data/stocks.json data/frameworks.json data/trader.json data/changes.json data/state_snapshot.json data/constituents.json dashboard.html
+          git add -f data/*.parquet || true
+          git diff --staged --quiet || git commit -m "recompute breadth $(date -u +%Y-%m-%d)"
+          git push
