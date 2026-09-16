@@ -77,7 +77,7 @@ HEADERS = {
 
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")
 EQ_SERIES = {"EQ"}
-MA_WINDOWS = [10, 20, 40, 50, 200]   # 40 retained for T2108
+MA_WINDOWS = [10, 20, 40, 50, 150, 200]   # 150 = 30-week MA (Weinstein stage line); 40 retained for T2108
 UNIVERSES = (["ALL", "LIQUID", "FNO", "NIFTY50", "NIFTYNEXT50", "MIDCAP150", "SMALLCAP250", "NIFTY500"]
              + list(SECTOR_CONSTITUENTS.keys()))
 EXTENDED_MULT = 1.15   # "extended" = adjusted close more than 15% above its 50 DMA
@@ -344,19 +344,41 @@ def write_lists(lists, keep_days=90):
 def compute_breadth(prices, fno, idx, const) -> pd.DataFrame:
     p = adjusted_panel(prices)
     p["liq"] = (p["turnover"] / 1e7 > LIQ_TURNOVER_CR) & (p["close"] > LIQ_PRICE)
+
+    # Per-symbol rolling stats, computed on each symbol's OWN consecutive sessions.
+    # These must NOT be computed on the wide (date x symbol) panel: that panel's
+    # date index is the union of every symbol's sessions, so a symbol that did not
+    # trade on some union date gets a NaN cell, and rolling(w, min_periods=w)
+    # returns NaN for the whole window if it contains even one NaN. Because the
+    # 2019-present store is stitched from two sources with slightly different
+    # trading calendars, that silently wiped the 200 DMA for almost every symbol
+    # (long window = more chance of hitting a hole) while the 50 DMA survived
+    # (recent window, internally clean). Grouping by symbol rolls over real
+    # consecutive sessions only and is immune to the union-grid holes.
+    p = p.sort_values(["symbol", "date"])
+    gadj = p.groupby("symbol", sort=False)["adj"]
+    for w in MA_WINDOWS:
+        p[f"_ma{w}"] = gadj.transform(lambda s: s.rolling(w, min_periods=w).mean())
+    p["_hi52"] = gadj.transform(lambda s: s.rolling(250, min_periods=100).max())
+    p["_lo52"] = gadj.transform(lambda s: s.rolling(250, min_periods=100).min())
+
     adj = p.pivot(index="date", columns="symbol", values="adj").sort_index()
     ret = p.pivot(index="date", columns="symbol", values="ret").sort_index()
     traded = adj.notna()
     liqm = p.pivot(index="date", columns="symbol", values="liq").reindex(
         index=adj.index, columns=adj.columns).fillna(False).astype(bool)
 
-    ma = {w: adj.rolling(w, min_periods=w).mean() for w in MA_WINDOWS}
+    ma = {w: p.pivot(index="date", columns="symbol", values=f"_ma{w}")
+              .reindex(index=adj.index, columns=adj.columns) for w in MA_WINDOWS}
+    hi52 = p.pivot(index="date", columns="symbol", values="_hi52").reindex(
+        index=adj.index, columns=adj.columns)
+    lo52 = p.pivot(index="date", columns="symbol", values="_lo52").reindex(
+        index=adj.index, columns=adj.columns)
+
     r21 = adj / adj.shift(21) - 1
     r5 = adj / adj.shift(5) - 1
     r65 = adj / adj.shift(QUARTER) - 1
     ext50 = adj > (ma[50] * EXTENDED_MULT)
-    hi52 = adj.rolling(250, min_periods=100).max()
-    lo52 = adj.rolling(250, min_periods=100).min()
 
     # F&O sets
     fno_sets = {}
