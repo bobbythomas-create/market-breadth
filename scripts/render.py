@@ -465,7 +465,7 @@ def signal_panel(df, sizes):
             f'<table class="sigtbl"><tr><th>Signal</th><th>Now</th><th>Base rate (2019+)</th><th>Read</th></tr>{srows}</table></div>'
             f'<div class="sigcol"><div class="sighdr">Sector rotation &middot; %&gt;50DMA (5d slope)</div>'
             f'<div class="secstrip">{strip}</div></div></div>'
-            f'<div class="posture"><b>POSTURE</b> {posture}</div>'
+            f'<div class="posture"><b>POSTURE</b> {posture} <a class="jl" onclick="jump(&#39;guide&#39;)">what do these mean? Guide &rarr;</a></div>'
             f'<ol class="sigobs">{obshtml}</ol>')
 
 
@@ -1019,6 +1019,7 @@ function oppsPane(){
    <div>Opportunities <span class="as">${cur}</span> &middot; F&amp;O universe ${O.universe||''} &middot; ${(O.longs||[]).length} long / ${(O.shorts||[]).length} short / ${(O.fades||[]).length} fade</div>
    <div>Session <select id="oppsdate" onchange="oppsLoad(this.value)">${opts}</select></div></div>
   <div class="ixrow">${ix||'index n/a'}</div>
+  <div style="margin:2px 0 7px">${tvChip((O.longs||[]).map(r=>r.s),'Longs')} ${tvChip((O.shorts||[]).map(r=>r.s),'Shorts')} ${tvChip((O.fades||[]).map(r=>r.s),'Fades')} ${tvChip([].concat((O.longs||[]).map(r=>r.s),(O.shorts||[]).map(r=>r.s),(O.fades||[]).map(r=>r.s)),'All ideas')}</div>
   <div class="onote2">Every idea is a two-way possibility; the tape decides direction. Conviction = move size, volume and trend alignment. Fades are counter-trend, lower conviction by design. Confirm on your chart and option chain before acting. Research, not advice. <b>NEW</b> fired this session, <b>CONT</b> also present in the prior one.</div>
   <div class="ogrid">
    ${oppsCol('Longs',O.longs,'up-momentum, RS leaders, Stage 2, breakouts, episodic pivots')}
@@ -1159,8 +1160,9 @@ function chartPane(){const s0=SER[U],d=DATA[U];if(!s0)return;
   return`<rect x="${x.toFixed(1)}" y="${(v>=0?50-hh:50).toFixed(1)}" width="${bw.toFixed(1)}" height="${hh.toFixed(1)}" fill="${v>=0?'#3f9a63':'#c2503c'}"/>`}).join('');
  document.getElementById('p-charts').innerHTML=`
  <div style="margin-bottom:7px"><select id="chw">
-  <option value="120">6 months</option><option value="250">1 year</option>
-  <option value="520" selected>2 years</option><option value="0">All history</option></select></div>
+  <option value="21">1 month</option><option value="63">3 months</option>
+  <option value="120" selected>6 months</option><option value="250">1 year</option>
+  <option value="520">2 years</option><option value="0">All history</option></select></div>
  <div class="obs" id="obsC"></div>
  <div class="card"><h3>Participation vs price &mdash; ${d.label}</h3>
   <div class="chartbox" id="cb1" style="position:relative">
@@ -1470,6 +1472,11 @@ function todayPane(){const A=ACTIONS;const el=document.getElementById('p-today')
    ${(typeof STOCKS!=='undefined'&&STOCKS.n_strict)?`<div class="cr"><span class="cn" style="color:#6fd39a">Stage-2 names</span><span style="color:#aab8c2">${STOCKS.n_strict} pass strict template &nbsp;<a class="jl" onclick="jump('screen')">screen &rarr;</a></span></div>`:''}
    <div class="cap" style="margin-top:6px"><a class="jl" onclick="jump('sectors')">full sector view &rarr;</a> &nbsp; <a class="jl" onclick="jump('scanner')">momentum scanner &rarr;</a></div></div>
  </div>
+ <div class="card" style="margin-bottom:9px"><h3>Notes &amp; reminders</h3>
+  <div class="cap" style="line-height:1.65">
+   <b>Calibration.</b> Fade and burst thresholds are India-tuned on this store. The ATR-based ones (extension, run gate, squeeze) are regime-robust; the fixed-percent burst and breadth ratios were set on a mostly-rising sample, so re-check once a strong up-leg is in the record (see <a class="jl" onclick="jump('reference')">Reference &rarr;</a>). F&amp;O conviction here is a ranking, not an entry: your chart and the option chain make the trade.<br>
+   <b>Parked builds.</b> Commodities (gold, silver, crude on MCX) for the opportunity engine; architecture (price store out of git, GitHub Pages, precomputed signals.json). Say the word to pick these up.
+  </div></div>
  <div class="gs"><h4>How serious Indian breadth traders act on this</h4>
   <table><tbody>
    <tr><td>Regime sets exposure</td><td>Aggressive full, Normal standard, Defensive half, Stand aside cash &nbsp;<a class="jl" onclick="jump('regime')">Regime &rarr;</a></td></tr>
@@ -1512,6 +1519,13 @@ function referencePane(){document.getElementById('p-reference').innerHTML=`
   <tr><td>India quarter tier added</td><td>35%/65d (3.1%)</td></tr>
  </tbody></table>
   <div class="cap">History now spans 2019 to present (1,900+ sessions) including the 2020 COVID crash and the 2022 correction, so the washout and thrust readings are measured against real drawdowns, not just a rising sample. The base rates in the top signal panel are computed on this full record. Still a small number of extreme events, so weight them rather than worship them.</div></div>
+ <div class="gs"><h4>India calibration: what is applied, and when to re-check</h4>
+  <dl>
+   <dt>India-specific thresholds</dt><dd>4% single-day mover (US uses 4.2%, below the Indian median); 5.0 and 0.5 five-day ratio extremes (US uses 2.0); T2108, the 6% daily tier and the 35%/65d quarter tier, all measured on this store; the 4% ADR floor (Bonde) for momentum; and the F&amp;O and NSE sector universes. The opportunity engine adds ATR-based extension and an ATR-normalised run gate that self-adjust to the volatility regime.</dd>
+   <dt>Regime-robust vs not</dt><dd>ATR-based signals hold across regimes by construction: the 2.5-ATR stretch fires on 9 to 14% of stock-days in every year from 2019, including the 2020 crash. Fixed-percent gates (the 4% burst, the breadth ratios) do not self-adjust and were set on a mostly-rising 2024-onward sample.</dd>
+   <dt>Re-check cadence</dt><dd>Re-measure the fixed-percent thresholds every 6 months, and after any regime change (a crash, or a turn from a rising to a falling market), because a 4% move means less when volatility is high. The ATR-based thresholds need no periodic tuning. This is the trading equivalent of the quarterly framework refresh above.</dd>
+   <dt>Still missing, next phase</dt><dd>A per-stock ADR filter and ranking (Qullamaggie), a parabolic-short class, breakout base-quality (a prior 30 to 100% move then a 2 to 8 week contraction), and volume dry-up on pullbacks (Raunak Agarwal). Queued.</dd>
+  </dl></div>
  <div class="gs"><h4>Momentum school: how breakout traders use this</h4>
   <dl><dt>Qullamaggie, the market filter</dt><dd>His only top-down rule: when the 10-day and 20-day are sloping down and breakouts keep failing, go to cash or trade small. On this dashboard that is the % above 10 DMA and 20 DMA lines rolling over together, and the Net 4% bars turning persistently red. He does not trade breakouts into weak breadth.</dd>
   <dt>Where he fishes</dt><dd>Only in leading groups. The Sectors tab, ranked by 10 and 20 DMA, is that filter. He buys the top 1-2% of performers surfing their 10/20 DMA, never below the 50 DMA, so a name in the Scanner tab tagged 52wH and up-in-5d, in a top-3 sector, is his archetype.</dd>
