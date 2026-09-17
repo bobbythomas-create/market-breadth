@@ -52,7 +52,7 @@ VOL_MULT = 1.5                  # today's volume vs 20-day average
 VOL_STRONG = 2.0
 GAP = 0.05                      # episodic pivot / gap-down gap size
 EXT_ATR = 2.5                   # ATR units from the 20 DMA to call it "stretched" (India-calibrated)
-FAST_RUN = 0.12                 # 10-day move that makes a fade worth watching
+RUN_ATR = 4.0                   # 10-day move as ATR-multiples (regime-robust, replaces a fixed %)
 
 
 def _load(name, cols=None):
@@ -184,11 +184,12 @@ def classify(sym, f, rs):
 
     # FADE classes (counter-trend, mean reversion after an expansion)
     fade = None
-    if (not np.isnan(f["ext_atr"])) and f["ext_atr"] >= EXT_ATR and f["ret10"] >= FAST_RUN \
+    run_atr = (f["ret10"] * 100 / f["atr_pct"]) if (f["atr_pct"] and not np.isnan(f["atr_pct"])) else 0.0
+    if (not np.isnan(f["ext_atr"])) and f["ext_atr"] >= EXT_ATR and run_atr >= RUN_ATR \
             and (ret1 < 0 or f["close_pos"] <= 0.4):
         fade = ("FADE-S", ["overbought fade"],
                 f"+{f['ext_atr']:.1f} ATR extended after +{f['ret10']*100:.0f}% run, exhaustion bar")
-    elif (not np.isnan(f["ext_atr"])) and f["ext_atr"] <= -EXT_ATR and f["ret10"] <= -FAST_RUN \
+    elif (not np.isnan(f["ext_atr"])) and f["ext_atr"] <= -EXT_ATR and run_atr <= -RUN_ATR \
             and (ret1 > 0 or f["close_pos"] >= 0.6):
         fade = ("FADE-L", ["oversold bounce"],
                 f"{f['ext_atr']:.1f} ATR below 20 DMA after {f['ret10']*100:.0f}% drop, reversal bar")
