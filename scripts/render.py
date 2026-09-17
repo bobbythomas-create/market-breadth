@@ -477,6 +477,8 @@ def build(csv, out, rows, repo):
     lists = load_lists(os.path.dirname(os.path.abspath(csv)))
     stocks_path = os.path.join(os.path.dirname(os.path.abspath(csv)), "stocks.json")
     stocks = json.load(open(stocks_path)) if os.path.exists(stocks_path) else {}
+    opps_path = os.path.join(os.path.dirname(os.path.abspath(csv)), "opportunities.json")
+    opps = json.load(open(opps_path)) if os.path.exists(opps_path) else {}
     fnoset = {}
     fpath = os.path.join(os.path.dirname(os.path.abspath(csv)), "fno_universe.parquet")
     if os.path.exists(fpath):
@@ -579,6 +581,7 @@ def build(csv, out, rows, repo):
             .replace("__CROSS__", json.dumps(crossovers, separators=(",", ":")))
             .replace("__SEGCROSS__", json.dumps(seg_crossovers, separators=(",", ":")))
             .replace("__STOCKS__", json.dumps(stocks, separators=(",", ":")))
+            .replace("__OPPS__", json.dumps(opps, separators=(",", ":")))
             .replace("__FNOSET__", json.dumps(fnoset, separators=(",", ":")))
             .replace("__FW__", json.dumps(fw, separators=(",", ":")))
             .replace("__TRADER__", json.dumps(trader, separators=(",", ":")))
@@ -807,6 +810,26 @@ footer{margin-top:9px;color:var(--dim);font-size:10px;line-height:1.55}
 .lg-i b{width:14px;height:3px;display:inline-block;border-radius:1px}
 .readnote{font-size:10.5px;color:var(--dim);line-height:1.5}
 .readnote b{color:var(--ink)}
+.obar{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center;font-size:12px;margin-bottom:6px}
+.ixrow{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+.ixchip{border:1px solid var(--rule);border-radius:3px;padding:3px 8px;font-size:10.5px;background:var(--pnl2);color:var(--dim)}
+.ixchip b{color:var(--ink);text-transform:capitalize}.ixchip i{font-style:normal}
+.ixchip.up{border-color:var(--acc)}.ixchip.down{border-color:#8f3a2c}
+.onote2{font-size:10px;color:var(--dim);line-height:1.5;margin-bottom:8px}
+.onote2 b{color:var(--ink)}
+.ogrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media(max-width:820px){.ogrid{grid-template-columns:1fr}}
+.ocol{border:1px solid var(--rule);border-radius:4px;background:var(--pnl);padding:7px 8px}
+.ohd{font-weight:700;font-size:12px;color:var(--ink);border-bottom:1px solid var(--rule);padding-bottom:4px;margin-bottom:4px}
+.ohd i{font-style:normal;color:var(--dim);font-weight:600}
+.onote{font-size:9.5px;color:var(--dim);margin-bottom:5px}
+.oemp{font-size:11px;color:var(--dim);padding:6px 0}
+.orow{display:grid;grid-template-columns:34px 84px 34px 1fr;gap:5px;align-items:baseline;padding:3px 0;border-bottom:1px solid var(--rule);font-size:11px}
+.obadge{font-size:8px;font-weight:700;letter-spacing:.03em;padding:1px 3px;border-radius:2px;text-align:center}
+.obadge.new{background:var(--acc);color:#08110c}.obadge.cont{background:var(--pnl2);color:var(--dim)}
+.osym{font-weight:700;color:var(--ink)}
+.otag{font-weight:700;font-size:10px}
+.owhy{color:var(--dim);font-size:10.5px}
 </style></head><body><div class="wrap">
 <div class="top"><div><h1>Market Breadth</h1><span class="as" id="as"></span></div>
 <div style="display:flex;gap:10px;align-items:center">
@@ -818,6 +841,7 @@ footer{margin-top:9px;color:var(--dim);font-size:10px;line-height:1.55}
 <div class="pane on" id="p-today"></div>
 <div class="pane" id="p-trader"></div>
 <div class="pane" id="p-screen"></div>
+<div class="pane" id="p-opps"></div>
 <div class="pane" id="p-table">
   <div class="pills" id="pills"></div><div class="bars" id="bars"></div><div class="obs" id="obs"></div>
   <div style="margin-bottom:7px"><select id="rows"><option value="60">60 sessions</option>
@@ -843,7 +867,7 @@ footer{margin-top:9px;color:var(--dim);font-size:10px;line-height:1.55}
 <script>
 const KEYS=__KEYS__,KI={};__KEYS__.forEach((k,i)=>KI[k]=i);
 const DATA=__DATA__,SER=__SERIES__,RUNS=__RUNS__,GROUPS=__GROUPS__,NARROW=new Set(__NARROW__),
- LISTS=__LISTS__,SIZES=__SIZES__,SECTS=__SECTS__,ULBL=__ULBL__,REPO="__REPO__",ACTIONS=__ACTIONS__,REGSIZE=__REGSIZE__,CROSS=__CROSS__,SEGCROSS=__SEGCROSS__,STOCKS=__STOCKS__,FNOSET=__FNOSET__,FW=__FW__,TRADER=__TRADER__,CHANGES=__CHANGES__;
+ LISTS=__LISTS__,SIZES=__SIZES__,SECTS=__SECTS__,ULBL=__ULBL__,REPO="__REPO__",ACTIONS=__ACTIONS__,REGSIZE=__REGSIZE__,CROSS=__CROSS__,SEGCROSS=__SEGCROSS__,STOCKS=__STOCKS__,OPPS=__OPPS__,FNOSET=__FNOSET__,FW=__FW__,TRADER=__TRADER__,CHANGES=__CHANGES__;
 const LBL={up4:"up 4%+",dn4:"down 4%+",up10:"up 10%+",dn10:"down 10%+",hi52:"at a 52-week high",
  lo52:"at a 52-week low",up25:"up 25%+ in 21 sessions",dn25:"down 25%+ in 21 sessions",
  up25q:"up 25%+ in a quarter",dn25q:"down 25%+ in a quarter",up20_5d:"up 20%+ in 5 sessions",
@@ -873,7 +897,7 @@ function usel(){const e=document.getElementById('usel');
  e.innerHTML=list.map(u=>`<div class="us" data-u="${u}" aria-selected="${u===U}">${ULBL[u]||u}</div>`).join('');
  e.style.display=(TAB==='today'||TAB==='trader'||TAB==='screen'||TAB==='segments'||TAB==='guide'||TAB==='reference'||TAB==='regime'||TAB==='sectors')?'none':'flex';
  e.querySelectorAll('.us').forEach(t=>t.onclick=()=>{U=t.dataset.u;usel();draw()})}
-const PRIMARY=[['today','Today'],['trader','Trader'],['screen','Screen'],['table','Table'],['charts','Charts']];
+const PRIMARY=[['today','Today'],['trader','Trader'],['opps','Opportunities'],['screen','Screen'],['table','Table'],['charts','Charts']];
 const MORE=[['sectors','Sectors'],['segments','Segments'],['regime','Regime'],['scanner','Scanner'],['guide','Guide'],['reference','Reference']];
 function selectTab(k){TAB=k;
  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='p-'+TAB));
@@ -972,6 +996,42 @@ function currentScreenRows(){if(!STOCKS||!STOCKS.stocks)return [];
  const mkey={rsu:'mru',rss:'mrs',rsn:'mrn'}[RSMODE];
  const gv2=x=>RSTYPE==='mans'?(x[mkey]?x[mkey][0]:null):x[RSMODE];
  return r.slice().sort((a,b)=>{const av=gv2(a),bv=gv2(b);if(av==null)return 1;if(bv==null)return -1;return bv-av;});}
+let OPPSDATA=null,OPPSDATE=null;
+function convColor(t){return t==='High'?'#5cc287':t==='Med'?'#c9a24f':'#8a94a0';}
+function oppsCol(title,arr,note){
+ if(!arr||!arr.length)return `<div class="ocol"><div class="ohd">${title}</div><div class="oemp">none this session</div></div>`;
+ const rows=arr.map(r=>`<div class="orow">
+   <span class="obadge ${r.state==='NEW'?'new':'cont'}">${r.state||''}</span>
+   <span class="osym">${r.s}</span>
+   <span class="otag" style="color:${convColor(r.tag)}">${r.tag}</span>
+   <span class="owhy">${r.why}</span></div>`).join('');
+ return `<div class="ocol"><div class="ohd">${title} <i>${arr.length}</i></div><div class="onote">${note}</div>${rows}</div>`;
+}
+function oppsPane(){
+ const el=document.getElementById('p-opps');if(!el)return;
+ const O=OPPSDATA||OPPS||{};
+ if(!O.asof){el.innerHTML=`<div class="note">Opportunities not generated yet. Add opportunities.py to the pipeline after ingest.</div>`;return;}
+ const dates=O.dates||[O.asof],cur=OPPSDATE||O.asof;
+ const opts=dates.slice().reverse().map(d=>`<option value="${d}" ${d===cur?'selected':''}>${d}${d===dates[dates.length-1]?' (latest)':''}</option>`).join('');
+ const ix=(O.index||[]).map(i=>`<span class="ixchip ${i.trend}">${i.label} <b>${i.trend}</b> ${i.ret1>=0?'+':''}${i.ret1}% <i>${i.vol_state}</i> &middot; ${i.posture}</span>`).join('');
+ el.innerHTML=`
+  <div class="obar">
+   <div>Opportunities <span class="as">${cur}</span> &middot; F&amp;O universe ${O.universe||''} &middot; ${(O.longs||[]).length} long / ${(O.shorts||[]).length} short / ${(O.fades||[]).length} fade</div>
+   <div>Session <select id="oppsdate" onchange="oppsLoad(this.value)">${opts}</select></div></div>
+  <div class="ixrow">${ix||'index n/a'}</div>
+  <div class="onote2">Every idea is a two-way possibility; the tape decides direction. Conviction = move size, volume and trend alignment. Fades are counter-trend, lower conviction by design. Confirm on your chart and option chain before acting. Research, not advice. <b>NEW</b> fired this session, <b>CONT</b> also present in the prior one.</div>
+  <div class="ogrid">
+   ${oppsCol('Longs',O.longs,'up-momentum, RS leaders, Stage 2, breakouts, episodic pivots')}
+   ${oppsCol('Shorts',O.shorts,'down-momentum, RS laggards, Stage 4, breakdowns, gap-downs')}
+   ${oppsCol('Fades: mean reversion',O.fades,'stretched from the 20 DMA after a fast move, exhaustion or reversal bar')}
+  </div>`;
+}
+async function oppsLoad(date){
+ if(date===OPPS.asof){OPPSDATA=OPPS;OPPSDATE=null;oppsPane();return;}
+ if(REPO){try{const r=await fetch(`https://raw.githubusercontent.com/${REPO}/main/data/opportunities/${date}.json`);
+   if(r.ok){OPPSDATA=await r.json();OPPSDATE=date;oppsPane();return;}}catch(e){}}
+ OPPSDATE=date;OPPSDATA=null;oppsPane();
+}
 function screenPane(){const el=document.getElementById('p-screen');
  if(!STOCKS||!STOCKS.stocks){el.innerHTML='<div class="card"><h3>Stock screen</h3><div class="cap">stocks.json not found. Run screen.py in the pipeline after ingest to generate the Stage-2 / RS screen.</div></div>';return}
  const A=ACTIONS;
@@ -1550,6 +1610,7 @@ function draw(){const d=DATA[U];
  regimeBadge();
  if(TAB==='today'){todayPane();return;}
  if(TAB==='screen'){screenPane();injectRead('p-screen');return;}
+ if(TAB==='opps'){oppsPane();injectRead('p-opps');return;}
  if(TAB==='trader'){traderPane();injectRead('p-trader');return;}
  if(TAB==='reference'){referencePane();injectRead('p-reference');return;}
  if(TAB==='guide'){guidePane();injectRead('p-guide');return;}
