@@ -56,6 +56,9 @@ jobs:
       - name: Changes
         run: python scripts/changes.py || echo "changes skipped"
 
+      - name: Opportunities
+        run: python scripts/opportunities.py || echo "opportunities skipped"
+
       - name: Render
         run: python scripts/render.py --csv data/breadth_history.csv --out dashboard.html --rows 250
 
@@ -68,7 +71,7 @@ jobs:
         run: |
           git config user.name  "breadth-bot"
           git config user.email "breadth-bot@users.noreply.github.com"
-          git add data/breadth_history.csv data/validation.txt data/lists data/stocks.json data/frameworks.json data/trader.json data/changes.json data/state_snapshot.json data/constituents.json dashboard.html
+          git add data/breadth_history.csv data/validation.txt data/lists data/stocks.json data/frameworks.json data/trader.json data/changes.json data/opportunities.json data/opportunities data/state_snapshot.json data/constituents.json dashboard.html
           git add -f data/*.parquet || true
           git diff --staged --quiet || git commit -m "breadth $(date -u +%Y-%m-%d)"
           git push
