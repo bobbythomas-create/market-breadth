@@ -16,6 +16,7 @@ import numpy as np, pandas as pd
 GROUPS = [
     ("Trend, % above DMA", [("pct_above_10dma", "10", None), ("pct_above_20dma", "20", None),
                             ("t2108", "T2108", None), ("pct_above_50dma", "50", None),
+                            ("pct_above_150dma", "150 30wk", None),
                             ("pct_above_200dma", "200", None), ("pct_extended_50dma", "Ext", "ext50")]),
     ("MA structure", [("pct_10dma_gt_20dma", "10>20", None), ("pct_20dma_gt_50dma", "20>50", None),
                       ("pct_50dma_gt_200dma", "50>200", None)]),
@@ -361,6 +362,113 @@ def sector_crossovers(df, pools, lookback=3):
     return out
 
 
+def signal_panel(df, sizes):
+    """Server-side action panel above the tabs: hero line, firing signals with
+    forward-return base rates since 2019, sector rotation strip, posture and terse
+    observations. Rendered as static HTML so it never depends on the client JS."""
+    a = df[df.universe == "ALL"].sort_values("date").reset_index(drop=True)
+    if len(a) < 130 or "nifty_close" not in a:
+        return ""
+    last = a.iloc[-1]
+    nif = a["nifty_close"].values
+
+    def fwd(i, h):
+        j = i + h
+        return (nif[j] / nif[i] - 1) * 100 if j < len(nif) and nif[i] > 0 else np.nan
+
+    def brate(mask):
+        idx = np.where(np.asarray(mask))[0]
+        keep, lk = [], -99
+        for i in idx:
+            if i - lk >= 5:
+                keep.append(i); lk = i
+        rr = [fwd(i, 60) for i in keep]; rr = [x for x in rr if not np.isnan(x)]
+        med = np.median(rr) if rr else np.nan
+        hit = 100 * np.mean([x > 0 for x in rr]) if rr else np.nan
+        return len(keep), med, hit
+
+    uc = a["universe_count"]
+    washout = (a["pct_above_50dma"] < 12).values
+    thrust = ((a["net_4pct"] >= 0.10 * uc) & (a["ratio_5d"] >= 3)).values
+    wt = np.array([bool(thrust[i] and washout[max(0, i - 10):i + 1].any()) for i in range(len(a))])
+    bear = a["div_bearish"].astype(bool).values if "div_bearish" in a else np.zeros(len(a), bool)
+    bull = a["div_bullish"].astype(bool).values if "div_bullish" in a else np.zeros(len(a), bool)
+    defs = [("Washout &lt;12%", washout, "buy trigger, strongest bottom tell"),
+            ("Washout+Thrust", wt, "highest-payoff bottom signature"),
+            ("Thrust", thrust, "momentum re-entry"),
+            ("Bear divergence", bear, "weak, trim only"),
+            ("Bull divergence", bull, "weak")]
+    firing_now = []
+    srows = ""
+    for label, mask, read in defs:
+        on = bool(mask[-1])
+        if on:
+            firing_now.append(label.replace("&lt;", "<"))
+        n, med, hit = brate(mask)
+        br = "n/a" if n == 0 or np.isnan(med) else f"n={n} &middot; {med:+.0f}% &middot; {hit:.0f}%"
+        st = '<span class="on">FIRING</span>' if on else '<span class="off">-</span>'
+        srows += f'<tr><td>{label}</td><td>{st}</td><td class="br">{br}</td><td class="rd">{read}</td></tr>'
+
+    reg = regime(last)
+    a50 = last.get("pct_above_50dma", np.nan)
+    n50 = df[(df.universe == "NIFTY50") & (df.date == last.date)]["pct_above_50dma"]
+    n50 = n50.iloc[0] if len(n50) else np.nan
+    sc = df[(df.universe == "SMALLCAP250") & (df.date == last.date)]["pct_above_50dma"]
+    sc = sc.iloc[0] if len(sc) else np.nan
+
+    # posture
+    if wt[-1] or (thrust[-1] and washout[max(0, len(a) - 11):].any()):
+        posture = "Risk-on. Washout+thrust base rate strongly favors longs. Add on strength."
+    elif washout[-1]:
+        posture = "Capitulation zone. Accumulate in tranches, do not chase. Base rate +10% median at 60d."
+    elif reg in ("Defensive", "Stand aside"):
+        posture = "Stand aside / defensive. No leadership. Wait for washout+thrust, or breadth reclaim above 45%."
+    elif reg == "Normal":
+        posture = "Neutral. Trade selectively with the leaders, keep stops tight."
+    else:
+        posture = "Trend intact. Stay long leaders while breadth holds above 58%."
+
+    # sector strip: rank by %>50DMA with 5-day slope
+    secs = [u for u in df["universe"].unique() if str(u).startswith("SEC_")]
+    chips = []
+    for u in secs:
+        gg = df[df.universe == u].sort_values("date")
+        if len(gg) < 6:
+            continue
+        cur = gg.iloc[-1].get("pct_above_50dma", np.nan)
+        slp = cur - gg.iloc[-6].get("pct_above_50dma", np.nan)
+        if pd.isna(cur):
+            continue
+        chips.append((ULBL.get(u, u.replace("SEC_", "")), cur, slp))
+    chips.sort(key=lambda x: -x[1])
+    strip = ""
+    for name, cur, slp in chips:
+        cls = "hi" if cur >= 50 else "mid" if cur >= 30 else "lo"
+        ar = "&#9650;" if slp > 1 else "&#9660;" if slp < -1 else "&middot;"
+        strip += f'<span class="chip {cls}">{name} <b>{cur:.0f}</b><i>{ar}{abs(slp):.0f}</i></span>'
+
+    fire = ", ".join(firing_now) if firing_now else "nothing firing"
+    gap = "large-caps weakest" if (not pd.isna(n50) and not pd.isna(a50) and a50 - n50 > 8) else \
+          "small-caps weakest" if (not pd.isna(sc) and not pd.isna(a50) and a50 - sc > 8) else "broadly even"
+    hero = (f'REGIME <b>{reg}</b> &middot; ALL {a50:.0f}% &gt;50DMA &middot; '
+            f'<span class="fire">{fire}</span> &middot; {gap} (Nifty50 {n50:.0f}%)')
+
+    obs = [f"regime {reg}, ALL {a50:.0f}% &gt;50DMA",
+           f"cap spread: Nifty50 {n50:.0f} vs Small {sc:.0f} ({gap})",
+           (f"sector lead {chips[0][0]} {chips[0][1]:.0f}, lag {chips[-1][0]} {chips[-1][1]:.0f}" if chips else "sectors n/a"),
+           f"signals: {fire}"]
+    obshtml = "".join(f"<li>{o}</li>" for o in obs)
+
+    return (f'<div class="hero">{hero}</div>'
+            f'<div class="sigwrap"><div class="sigcol">'
+            f'<div class="sighdr">Signals &middot; base rate = events / +60d median Nifty / hit</div>'
+            f'<table class="sigtbl"><tr><th>Signal</th><th>Now</th><th>Base rate (2019+)</th><th>Read</th></tr>{srows}</table></div>'
+            f'<div class="sigcol"><div class="sighdr">Sector rotation &middot; %&gt;50DMA (5d slope)</div>'
+            f'<div class="secstrip">{strip}</div></div></div>'
+            f'<div class="posture"><b>POSTURE</b> {posture}</div>'
+            f'<ol class="sigobs">{obshtml}</ol>')
+
+
 def build(csv, out, rows, repo):
     df = pd.read_csv(csv)
     df["date"] = pd.to_datetime(df["date"])
@@ -454,7 +562,9 @@ def build(csv, out, rows, repo):
     crossovers = sector_crossovers(df, sects)
     seg_crossovers = sector_crossovers(df, [u for u in sizes if u not in ("ALL",)])
 
+    sigpanel = signal_panel(df, sizes)
     html = (TEMPLATE
+            .replace("__SIGNALPANEL__", sigpanel)
             .replace("__DATA__", json.dumps(payload, separators=(",", ":")))
             .replace("__SERIES__", json.dumps(series, separators=(",", ":")))
             .replace("__RUNS__", json.dumps(runs, separators=(",", ":")))
@@ -669,11 +779,35 @@ canvas.gr{width:150px;height:10px;border-radius:2px}
 @media(max-width:600px){.verdict{flex-direction:column;align-items:flex-start}.vright{text-align:left}}
 footer{margin-top:9px;color:var(--dim);font-size:10px;line-height:1.55}
 @media(max-width:760px){.pill{min-width:64px}.pill.reg{min-width:100%}.ct{max-width:180px}.cn{width:72px}}
+.sigpanel{border:1px solid var(--rule);background:var(--pnl);border-radius:4px;padding:8px 10px;margin:2px 0 9px}
+.sigpanel .hero{font-size:12.5px;font-weight:600;color:var(--ink);border-bottom:1px solid var(--rule);padding-bottom:6px;margin-bottom:7px}
+.sigpanel .hero b{color:var(--acc)}
+.sigpanel .fire{color:#c9a24f}
+.sigwrap{display:flex;gap:14px;flex-wrap:wrap}
+.sigcol{flex:1;min-width:280px}
+.sighdr{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);margin-bottom:4px}
+.sigtbl{width:100%;border-collapse:collapse;font-size:11px}
+.sigtbl th{text-align:left;color:var(--dim);font-weight:600;padding:2px 6px;border-bottom:1px solid var(--rule)}
+.sigtbl td{padding:2px 6px;border-bottom:1px solid var(--rule)}
+.sigtbl .br,.sigtbl .rd{color:var(--dim);white-space:nowrap}
+.sigtbl .on{color:#c9a24f;font-weight:700}
+.sigtbl .off{color:var(--dim)}
+.secstrip{display:flex;flex-wrap:wrap;gap:4px}
+.chip{border:1px solid var(--rule);border-radius:3px;padding:2px 6px;font-size:10.5px;background:var(--pnl2)}
+.chip b{color:var(--ink)}
+.chip i{color:var(--dim);font-style:normal;margin-left:4px;font-size:9.5px}
+.chip.hi{border-color:var(--acc)}
+.chip.lo{border-color:#7a4a3e}
+.posture{margin-top:8px;padding:6px 8px;background:var(--pnl2);border-radius:3px;font-size:11.5px;color:var(--ink)}
+.posture b{color:var(--acc);margin-right:4px}
+.sigobs{margin:7px 0 0;padding-left:18px;font-size:10.5px;color:var(--dim)}
+.sigobs li{margin:1px 0}
 </style></head><body><div class="wrap">
 <div class="top"><div><h1>Market Breadth</h1><span class="as" id="as"></span></div>
 <div style="display:flex;gap:10px;align-items:center">
 <span class="rbadge" id="rbadge"></span>
 <div class="ctl" id="usel"></div></div></div>
+<div class="sigpanel">__SIGNALPANEL__</div>
 <div class="tabs" id="tabs"></div>
 
 <div class="pane on" id="p-today"></div>
