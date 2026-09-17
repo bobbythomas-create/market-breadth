@@ -802,6 +802,11 @@ footer{margin-top:9px;color:var(--dim);font-size:10px;line-height:1.55}
 .posture b{color:var(--acc);margin-right:4px}
 .sigobs{margin:7px 0 0;padding-left:18px;font-size:10.5px;color:var(--dim)}
 .sigobs li{margin:1px 0}
+.leg{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 4px;padding:5px 7px;background:var(--pnl2);border-radius:3px}
+.lg-i{display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--dim)}
+.lg-i b{width:14px;height:3px;display:inline-block;border-radius:1px}
+.readnote{font-size:10.5px;color:var(--dim);line-height:1.5}
+.readnote b{color:var(--ink)}
 </style></head><body><div class="wrap">
 <div class="top"><div><h1>Market Breadth</h1><span class="as" id="as"></span></div>
 <div style="display:flex;gap:10px;align-items:center">
@@ -909,7 +914,7 @@ function traderPane(){const T=TRADER,el=document.getElementById('p-trader');
  if(!T||!T.index){el.innerHTML='<div class="card"><h3>Trader</h3><div class="cap">trader.json not found. Run trader.py in the pipeline after ingest. VIX and index-squeeze signals need index_ohlc.parquet; stock squeeze needs the OHLC-widened price store (one backfill re-run).</div></div>';return}
  const v=T.index.vix||{},ix=T.index.indices||[],fb=T.fno||{};
  // VIX card
- let ivState=v.ivrank==null?'':v.ivrank>=70?'RICH — sellers favoured':v.ivrank<=30?'CHEAP — buyers favoured':'MID';
+ let ivState=v.ivrank==null?'':v.ivrank>=70?'RICH, sellers favoured':v.ivrank<=30?'CHEAP, buyers favoured':'MID';
  let ivCol=v.ivrank==null?'var(--dim)':v.ivrank>=70?'#e07a63':v.ivrank<=30?'#6fd39a':'#c9a04a';
  const hv=v.hv||{};
  const vixCard=`<div class="card"><h3>India VIX &mdash; index options vol</h3>
@@ -1107,13 +1112,15 @@ function chartPane(){const s0=SER[U],d=DATA[U];if(!s0)return;
    ${s.thr.map(i=>`<circle cx="${(i/(n-1)*W).toFixed(1)}" cy="6" r="2.4" fill="#5cc287"/>`).join('')}${lbl}
    <line id="ch1" x1="0" y1="0" x2="0" y2="${H}" stroke="#e8eef2" stroke-width="1" opacity="0"/></svg>
   <div class="tip" id="tip1"></div></div>
-  <div class="cap"><span style="color:#5cc287">&#9644;</span> % above 50 DMA &nbsp;
-   <span style="color:#b98bd8">&#9644;</span> T2108 (% above 40 DMA) &nbsp;
-   <span style="color:#6f9fd8">&#9644;</span> % above 200 DMA &nbsp;
-   <span style="color:#d8b34a">&#9644;</span> Nifty 50, rescaled &nbsp;
-   <span style="color:#e8d24a">&#9679;</span> Zweig thrust &nbsp;<span style="color:#5cc287">&#9679;</span> 4% thrust.
-   Background bands mark regime zones: red below 30, amber 30 to 45, green above 60.
-   Where the gold line rises while the green line falls, the index is being carried by fewer stocks.</div></div>
+  <div class="leg">
+   <span class="lg-i"><b style="background:#5cc287"></b>% &gt;50 DMA</span>
+   <span class="lg-i"><b style="background:#6f9fd8"></b>% &gt;200 DMA</span>
+   <span class="lg-i"><b style="background:#b98bd8"></b>T2108 (%&gt;40 DMA)</span>
+   <span class="lg-i"><b style="background:#d8b34a"></b>Nifty 50 (rescaled)</span>
+   <span class="lg-i"><b style="background:#e8d24a;width:8px;height:8px;border-radius:50%"></b>Zweig thrust</span>
+   <span class="lg-i"><b style="background:#5cc287;width:8px;height:8px;border-radius:50%"></b>4% thrust</span>
+  </div>
+  <div class="readnote"><b>How to read.</b> Bands mark regime zones (red below 30, amber 30 to 45, green above 60). Divergence is the signal: when gold (Nifty) rises while green (%&gt;50 DMA) falls, the index is carried by fewer stocks and the rally is fragile. When green rises while gold is flat or down, buying is building under the surface.</div></div>
  <div class="card"><h3>Net 4% movers</h3>
   <div class="chartbox" id="cb2" style="position:relative">
   <svg id="svg2" viewBox="0 0 ${W} 100" preserveAspectRatio="none" style="height:110px">
@@ -1428,6 +1435,9 @@ function referencePane(){document.getElementById('p-reference').innerHTML=`
   <tr><td>Bonde on edge (video)</td><td>Investors Underground, &ldquo;How to Find Your Edge with Pradeep Bonde&rdquo;</td></tr>
   <tr><td>Martin Zweig, Breadth Thrust (book)</td><td>Winning on Wall Street</td></tr>
   <tr><td>Stan Weinstein, 30-week stage analysis</td><td>Secrets for Profiting in Bull and Bear Markets</td></tr>
+  <tr><td>Gregory Morris, the breadth reference (book)</td><td>The Complete Guide to Market Breadth Indicators</td></tr>
+  <tr><td>Stage Analysis, 50/150/200 and 30-week breadth, weekend videos</td><td>stageanalysis.net</td></tr>
+  <tr><td>Plain-English breadth primer</td><td>thetrading.tools/market-breadth</td></tr>
  </tbody></table></div>
  <div class="gs"><h4>The single most important idea</h4>
   <dl><dd>Breadth is most useful at extremes and close to noise between them. The 5-day ratio reaching an extreme is the actionable event, not the day-to-day wiggle. There is an asymmetry worth burning in: extremely bearish breadth is a reliable bullish signal, while extremely bullish breadth has a poor record of calling tops, because tops are gradual and bottoms are violent. Use breadth to add risk after washouts and to trim risk gradually, never to time exits precisely.</dd></dl></div>
@@ -1441,13 +1451,13 @@ function referencePane(){document.getElementById('p-reference').innerHTML=`
   <tr><td>25%/quarter (US)</td><td>over-fires in India (5.6%)</td></tr>
   <tr><td>India quarter tier added</td><td>35%/65d (3.1%)</td></tr>
  </tbody></table>
-  <div class="cap">Thresholds calibrated on 589 sessions from Apr 2024, a predominantly rising sample. They will drift as a full correction enters the record; treat the ratio extremes as provisional until then.</div></div>
+  <div class="cap">History now spans 2019 to present (1,900+ sessions) including the 2020 COVID crash and the 2022 correction, so the washout and thrust readings are measured against real drawdowns, not just a rising sample. The base rates in the top signal panel are computed on this full record. Still a small number of extreme events, so weight them rather than worship them.</div></div>
  <div class="gs"><h4>Momentum school: how breakout traders use this</h4>
   <dl><dt>Qullamaggie, the market filter</dt><dd>His only top-down rule: when the 10-day and 20-day are sloping down and breakouts keep failing, go to cash or trade small. On this dashboard that is the % above 10 DMA and 20 DMA lines rolling over together, and the Net 4% bars turning persistently red. He does not trade breakouts into weak breadth.</dd>
   <dt>Where he fishes</dt><dd>Only in leading groups. The Sectors tab, ranked by 10 and 20 DMA, is that filter. He buys the top 1-2% of performers surfing their 10/20 DMA, never below the 50 DMA, so a name in the Scanner tab tagged 52wH and up-in-5d, in a top-3 sector, is his archetype.</dd>
   <dt>Episodic Pivots</dt><dd>Gap-ups above 10% on heavy volume after a catalyst. Your U10 column is the daily count of these; a rising U10 in a strong regime means EP setups are firing across the market.</dd>
   <dt>Minervini, breadth confirmation</dt><dd>His Stage-2 template wants the broad market in a confirmed uptrend before pressing risk, and stacked moving averages (50 above 150 above 200) on individual names. The MA structure columns are the market-wide version of that stacking check.</dd>
-  <dt>Weinstein, the 30-week line</dt><dd>Stage analysis turns on the 30-week EMA. Not yet in the dashboard; flagged as the next addition. It would sit between the 50 and 200 DMA reads as the true intermediate stage gauge.</dd></dl></div>`;}
+  <dt>Weinstein, the 30-week line</dt><dd>Stage analysis turns on the 30-week MA. <b>Now live</b> as the 150-day (30-week) bar in the DMA gauge, sitting between the 50 and 200 DMA reads as the intermediate stage gauge. A rising 30-week line with price above it is Stage 2 (advance); a falling one with price below is Stage 4 (decline).</dd></dl></div>`;}
 
 function guidePane(){document.getElementById('p-guide').innerHTML=`
  <div class="note"><b>Use breadth at extremes, not in the middle.</b> The 5-day ratio hitting an extreme is the event to act on. Extremely bearish breadth reliably marks bottoms; extremely bullish breadth does not reliably mark tops. Add risk after washouts, trim risk gradually.</div>
@@ -1460,6 +1470,11 @@ function guidePane(){document.getElementById('p-guide').innerHTML=`
   <tr><td>Divergence (bear)</td><td>Nifty prints a fresh 20-session high while % above 50 DMA does not. <b>Example:</b> index at a new high but 50 DMA breadth stuck at 52 versus 60 a month ago means fewer stocks carry the tape; raise stops.</td></tr>
   <tr><td>Zweig thrust</td><td>The 10-day advance ratio races from below 0.40 to above 0.615 within ten sessions. <b>Example:</b> it has fired only nine times in this record; each marked the start of a strong multi-week advance. Rare and unambiguous.</td></tr>
   <tr><td>Crossover (10&times;50)</td><td>A sector&rsquo;s % above 10 DMA crossing above its % above 50 DMA. <b>Example:</b> Infra 10 DMA rising through its 50 DMA line is the first sign a laggard is turning up, before the 50 DMA itself improves. The Sectors tab flags these.</td></tr>
+  <tr><td>Base rate</td><td>When this exact signal fired before, what usually happened next. <b>Example:</b> &ldquo;Washout n=20, +60d +10%, hit 90%&rdquo; means washout has fired 20 separate times since 2019; the middle outcome was Nifty +10% sixty sessions later, and it was higher in 18 of the 20. It is odds, not a promise, and the sample is small, so weight it rather than worship it.</td></tr>
+  <tr><td>Rolling over</td><td>A breadth number that was high and rising and has turned down, like a ball cresting a hill. <b>Example:</b> IT went from 50% of its stocks above the 50 DMA to 30% and falling. Momentum is flipping from up to down: cut longs, start watching for shorts.</td></tr>
+  <tr><td>Washout / Thrust</td><td>Washout = under 12% of stocks above their 50 DMA, seller capitulation. Thrust = a session where net 4% movers exceed 10% of the universe with a 3:1 up ratio, buyers seizing control. <b>Example:</b> a washout followed within days by a thrust is the durable-low signature; base rate n=4 since 2019, +60d +13%, every instance higher.</td></tr>
+  <tr><td>Net 4% chart</td><td>Each bar is stocks up 4% minus stocks down 4% that day. <b>Example:</b> a cluster of tall green bars after a decline is a thrust (funds buying); sustained red under a flat index is quiet distribution (funds selling). A single tall red like &minus;471 is a one-day broad flush.</td></tr>
+  <tr><td>Signal panel (top of page)</td><td>The fixed strip above the tabs. Left: each signal, whether it is firing now, and its base rate. Right: sectors ranked by %&gt;50 DMA with the 5-day slope. Below: a one-line posture and terse observations. This is the ten-second read; open a tab only when it flags something.</td></tr>
  </tbody></table></div>
  <div class="gs"><h4>Regime, action labels</h4><table><tbody>
   <tr><td style="color:#2c8f57;font-weight:700">Aggressive</td><td>&ge;58% above 50 DMA, ratio &ge;1</td><td>Full size, buy breakouts freely</td></tr>
