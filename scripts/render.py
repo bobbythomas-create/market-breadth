@@ -362,7 +362,7 @@ def sector_crossovers(df, pools, lookback=3):
     return out
 
 
-def signal_panel(df, sizes):
+def signal_panel(df, sizes, opps=None):
     """Server-side action panel above the tabs: hero line, firing signals with
     forward-return base rates since 2019, sector rotation strip, posture and terse
     observations. Rendered as static HTML so it never depends on the client JS."""
@@ -459,7 +459,45 @@ def signal_panel(df, sizes):
            f"signals: {fire}"]
     obshtml = "".join(f"<li>{o}</li>" for o in obs)
 
-    return (f'<div class="hero">{hero}</div>'
+    # Instrument-first action list (Bob trades Nifty F&O, Bank Nifty F&O, stock F&O), probability-honest
+    op = opps or {}
+    idxmap = {i.get("label"): i for i in op.get("index", [])}
+
+    def _stance(i):
+        if not i:
+            return "no index data"
+        t, vs = i.get("trend"), i.get("vol_state")
+        s = ("buy dips, bull structures" if t == "up"
+             else "sell rallies, bear structures" if t == "down"
+             else "range, favour premium-selling")
+        if vs == "coiled":
+            s += "; coiled, watch for a range expansion (long straddle or strangle)"
+        elif vs == "expanding":
+            s += "; vol elevated, defined-risk only"
+        return s
+
+    if washout[-1]:
+        nflip = " Washout firing now: high-odds long, base rate +10% at 60d, 90% hit."
+    elif wt[-1]:
+        nflip = " Washout+thrust firing: strongest long signal, +13% at 60d."
+    else:
+        nflip = f" No breadth extreme (ALL {a50:.0f}% above 50 DMA); flip long only if it washes under 12 (base rate then +10% at 60d, 90% hit)."
+    hs = [r["s"] for r in op.get("shorts", []) if r.get("tag") == "High"][:5]
+    hl = [r["s"] for r in op.get("longs", []) if r.get("tag") == "High"][:5]
+    hf = [r["s"] for r in op.get("fades", [])][:3]
+    stock_line = ("SHORT " + ", ".join(hs)) if hs else "no high-conviction shorts"
+    stock_line += " &nbsp;|&nbsp; " + (("LONG " + ", ".join(hl)) if hl else "no high-conviction longs")
+    if hf:
+        stock_line += " &nbsp;|&nbsp; FADE " + ", ".join(hf)
+    action = (
+        '<div class="actwrap"><div class="acthd">Action today &middot; F&amp;O first</div>'
+        f'<div class="actrow"><span class="ain">NIFTY F&amp;O</span><span>{_stance(idxmap.get("Nifty 50"))}.{nflip}</span></div>'
+        f'<div class="actrow"><span class="ain">BANK NIFTY F&amp;O</span><span>{_stance(idxmap.get("Bank Nifty"))}</span></div>'
+        f'<div class="actrow"><span class="ain">STOCK F&amp;O</span><span>{stock_line} <a class="jl" onclick="jump(&#39;opps&#39;)">Opportunities &rarr;</a></span></div>'
+        '<div class="actrow"><span class="ain">REST</span><span>Cash equities follow the same lean; commodities on MCX are parked.</span></div>'
+        '</div>')
+
+    return (action + f'<div class="hero">{hero}</div>'
             f'<div class="sigwrap"><div class="sigcol">'
             f'<div class="sighdr">Signals &middot; base rate = events / +60d median Nifty / hit</div>'
             f'<table class="sigtbl"><tr><th>Signal</th><th>Now</th><th>Base rate (2019+)</th><th>Read</th></tr>{srows}</table></div>'
@@ -564,7 +602,7 @@ def build(csv, out, rows, repo):
     crossovers = sector_crossovers(df, sects)
     seg_crossovers = sector_crossovers(df, [u for u in sizes if u not in ("ALL",)])
 
-    sigpanel = signal_panel(df, sizes)
+    sigpanel = signal_panel(df, sizes, opps)
     html = (TEMPLATE
             .replace("__SIGNALPANEL__", sigpanel)
             .replace("__DATA__", json.dumps(payload, separators=(",", ":")))
@@ -810,6 +848,11 @@ footer{margin-top:9px;color:var(--dim);font-size:10px;line-height:1.55}
 .lg-i b{width:14px;height:3px;display:inline-block;border-radius:1px}
 .readnote{font-size:10.5px;color:var(--dim);line-height:1.5}
 .readnote b{color:var(--ink)}
+.actwrap{border:1px solid var(--acc);background:var(--pnl);border-radius:4px;padding:7px 9px;margin-bottom:8px}
+.acthd{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--acc);font-weight:700;margin-bottom:5px}
+.actrow{display:grid;grid-template-columns:118px 1fr;gap:8px;padding:3px 0;border-bottom:1px solid var(--rule);font-size:11.5px;align-items:baseline}
+.actrow:last-child{border-bottom:0}
+.ain{font-weight:700;color:var(--ink);font-size:10.5px;letter-spacing:.02em}
 .obar{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center;font-size:12px;margin-bottom:6px}
 .ixrow{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
 .ixchip{border:1px solid var(--rule);border-radius:3px;padding:3px 8px;font-size:10.5px;background:var(--pnl2);color:var(--dim)}
@@ -897,8 +940,8 @@ function usel(){const e=document.getElementById('usel');
  e.innerHTML=list.map(u=>`<div class="us" data-u="${u}" aria-selected="${u===U}">${ULBL[u]||u}</div>`).join('');
  e.style.display=(TAB==='today'||TAB==='trader'||TAB==='screen'||TAB==='segments'||TAB==='guide'||TAB==='reference'||TAB==='regime'||TAB==='sectors')?'none':'flex';
  e.querySelectorAll('.us').forEach(t=>t.onclick=()=>{U=t.dataset.u;usel();draw()})}
-const PRIMARY=[['today','Today'],['trader','Trader'],['opps','Opportunities'],['screen','Screen'],['table','Table'],['charts','Charts']];
-const MORE=[['sectors','Sectors'],['segments','Segments'],['regime','Regime'],['scanner','Scanner'],['guide','Guide'],['reference','Reference']];
+const PRIMARY=[['today','Today'],['opps','Opportunities'],['trader','Trader'],['charts','Charts']];
+const MORE=[['screen','Screen'],['table','Table'],['sectors','Sectors'],['segments','Segments'],['regime','Regime'],['scanner','Scanner'],['guide','Guide'],['reference','Reference']];
 function selectTab(k){TAB=k;
  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='p-'+TAB));
  document.querySelectorAll('.tb').forEach(x=>x.setAttribute('aria-selected',x.dataset.t===k));
