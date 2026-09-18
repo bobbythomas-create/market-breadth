@@ -501,6 +501,31 @@ def signal_panel(df, sizes, opps=None):
         '<div class="actrow"><span class="ain">REST</span><span>Cash equities follow the same lean; commodities on MCX are parked.</span></div>'
         '</div>')
 
+    # day-over-day breadth delta + bottom-line synthesis (mirrors the chat read, in the dashboard)
+    prev = a.iloc[-2]["pct_above_50dma"] if len(a) >= 2 else np.nan
+    delta = ""
+    if not pd.isna(prev):
+        dv = a50 - prev
+        delta = f", {'up' if dv > 0.5 else 'down' if dv < -0.5 else 'flat'} from {prev:.0f}% prior"
+    hl2 = [r["s"] for r in op.get("longs", []) if r.get("tag") == "High"][:4]
+    hs2 = [r["s"] for r in op.get("shorts", []) if r.get("tag") == "High"][:4]
+    if firing_now:
+        bl = f"Edge: {firing_now[0]} firing (ALL {a50:.0f}%{delta}). Act on the base rate above, size to conviction."
+    elif reg in ("Defensive", "Stand aside"):
+        watch = []
+        if hs2:
+            watch.append("shorts " + ", ".join(hs2))
+        if hl2:
+            watch.append("longs " + ", ".join(hl2))
+        wtxt = "; ".join(watch) if watch else "no high-conviction names today"
+        bl = (f"No edge signal, {reg.lower()} tape (ALL {a50:.0f}%{delta}). {wtxt} are a ranked "
+              f"watchlist to confirm on your chart and option chain, not an entry. Real edge only when a "
+              f"base-rate signal fires (washout, thrust), and none is.")
+    elif reg == "Normal":
+        bl = f"Neutral tape (ALL {a50:.0f}%{delta}). Trade selectively with the leaders, keep stops tight."
+    else:
+        bl = f"Trend intact (ALL {a50:.0f}%{delta}). Stay with the leaders while breadth holds above 58%."
+
     return (action + f'<div class="hero">{hero}</div>'
             f'<div class="sigwrap"><div class="sigcol">'
             f'<div class="sighdr">Signals &middot; base rate = events / +60d median Nifty / hit</div>'
@@ -508,7 +533,7 @@ def signal_panel(df, sizes, opps=None):
             f'<div class="sigcol"><div class="sighdr">Sector rotation &middot; %&gt;50DMA (5d slope)</div>'
             f'<div class="secstrip">{strip}</div></div></div>'
             f'<div class="posture"><b>POSTURE</b> {posture} <a class="jl" onclick="jump(&#39;guide&#39;)">what do these mean? Guide &rarr;</a></div>'
-            f'<ol class="sigobs">{obshtml}</ol>')
+            f'<ol class="sigobs">{obshtml}</ol>' + f'<div class="botline"><b>Bottom line</b> {bl}</div>')
 
 
 def build(csv, out, rows, repo):
@@ -861,6 +886,8 @@ footer{margin-top:9px;color:var(--dim);font-size:11px;line-height:1.55}
 .posture b{color:var(--acc);margin-right:4px}
 .sigobs{margin:7px 0 0;padding-left:18px;font-size:11.5px;color:var(--dim)}
 .sigobs li{margin:1px 0}
+.botline{margin-top:8px;padding:7px 9px;background:var(--pnl2);border-left:2px solid var(--acc);border-radius:3px;font-size:11.5px;color:var(--ink);line-height:1.55}
+.botline b{color:var(--acc);margin-right:5px}
 .leg{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 4px;padding:5px 7px;background:var(--pnl2);border-radius:3px}
 .lg-i{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--dim)}
 .lg-i b{width:14px;height:3px;display:inline-block;border-radius:1px}
