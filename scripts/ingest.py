@@ -154,7 +154,7 @@ def fetch_fno(sess, d: date):
 
 
 # indices we want OHLC for, in index_ohlc.parquet. Name must match ind_close_all exactly.
-OHLC_INDICES = {"NIFTY 50": "NIFTY50", "NIFTY BANK": "BANKNIFTY", "INDIA VIX": "INDIAVIX"}
+OHLC_INDICES = {"NIFTY 50": "NIFTY50", "NIFTY BANK": "BANKNIFTY", "INDIA VIX": "INDIAVIX", "NIFTY IT": "NIFTYIT"}
 
 
 def fetch_index(sess, d: date):
@@ -550,17 +550,45 @@ def validate(b):
 
 # ---------------------------------------------------------------- main
 
+def index_backfill(start, end):
+    """Light index-only backfill: fetch ind_close_all per weekday and upsert into
+    index_ohlc.parquet. Fills newly-added indices (e.g. NIFTYIT) without touching the
+    price store or breadth. Runs where NSE is reachable (GitHub Actions), not the chat."""
+    sess = _session()
+    oh = _load("index_ohlc.parquet", ["date", "index", "open", "high", "low", "close"])
+    rows, got = [], 0
+    d = start
+    while d <= end:
+        if d.weekday() < 5:
+            _, odf = fetch_index(sess, d)
+            if odf is not None and len(odf):
+                rows.append(odf); got += 1
+                if got % 25 == 0:
+                    print(f"  {d} ({got} sessions)")
+            time.sleep(0.4)
+        d += timedelta(days=1)
+    if rows:
+        oh = pd.concat([oh] + rows, ignore_index=True).drop_duplicates(["date", "index"], keep="last")
+        _save(oh.sort_values(["index", "date"]), "index_ohlc.parquet")
+    print(f"index_ohlc: {got} sessions fetched; indices now {sorted(oh['index'].unique())}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--backfill", help="start date YYYY-MM-DD")
     ap.add_argument("--end", help="end date YYYY-MM-DD (default today)")
     ap.add_argument("--recompute", action="store_true")
+    ap.add_argument("--index-backfill", help="index-only backfill start date YYYY-MM-DD (fills NIFTYIT etc.)")
     ap.add_argument("--max-days", type=int, default=120)
     ap.add_argument("--prefer-mirror", action="store_true")
     ap.add_argument("--refetch", action="store_true", help="re-fetch and overwrite existing rows (use once to add OHLC to history)")
     a = ap.parse_args()
 
     end = datetime.strptime(a.end, "%Y-%m-%d").date() if a.end else date.today()
+
+    if a.index_backfill:
+        index_backfill(datetime.strptime(a.index_backfill, "%Y-%m-%d").date(), end)
+        return
 
     if a.recompute:
         prices = _load("prices.parquet", [])
