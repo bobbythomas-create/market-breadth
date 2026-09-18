@@ -489,10 +489,14 @@ def signal_panel(df, sizes, opps=None):
     stock_line += " &nbsp;|&nbsp; " + (("LONG " + ", ".join(hl)) if hl else "no high-conviction longs")
     if hf:
         stock_line += " &nbsp;|&nbsp; FADE " + ", ".join(hf)
+    nit = ""
+    if idxmap.get("Nifty IT"):
+        nit = f'<div class="actrow"><span class="ain">NIFTY IT</span><span>{_stance(idxmap.get("Nifty IT"))}. No index F&amp;O; trade via IT stock F&amp;O (INFY, TCS, HCLTECH).</span></div>'
     action = (
         '<div class="actwrap"><div class="acthd">Action today &middot; F&amp;O first</div>'
         f'<div class="actrow"><span class="ain">NIFTY F&amp;O</span><span>{_stance(idxmap.get("Nifty 50"))}.{nflip}</span></div>'
         f'<div class="actrow"><span class="ain">BANK NIFTY F&amp;O</span><span>{_stance(idxmap.get("Bank Nifty"))}</span></div>'
+        + nit +
         f'<div class="actrow"><span class="ain">STOCK F&amp;O</span><span>{stock_line} <a class="jl" onclick="jump(&#39;opps&#39;)">Opportunities &rarr;</a></span></div>'
         '<div class="actrow"><span class="ain">REST</span><span>Cash equities follow the same lean; commodities on MCX are parked.</span></div>'
         '</div>')
