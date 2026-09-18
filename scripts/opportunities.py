@@ -240,7 +240,7 @@ def classify(sym, f, rs):
 
 def index_block(oh):
     """Trend + range state for the tradable index underlyings."""
-    want = {"NIFTY50": "Nifty 50", "NIFTYBANK": "Bank Nifty", "BANKNIFTY": "Bank Nifty"}
+    want = {"NIFTY50": "Nifty 50", "NIFTYBANK": "Bank Nifty", "BANKNIFTY": "Bank Nifty", "NIFTYIT": "Nifty IT"}
     out = []
     if not len(oh):
         return out
