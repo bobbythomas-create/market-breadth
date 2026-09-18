@@ -89,7 +89,7 @@ INVERTED = {"declines", "down_4pct", "down_6pct", "down_10pct", "down_25pct_21d"
 
 SECTORS = ["SEC_BANK", "SEC_FINSRV", "SEC_IT", "SEC_PHARMA", "SEC_AUTO", "SEC_FMCG",
            "SEC_METAL", "SEC_ENERGY", "SEC_INFRA", "SEC_REALTY", "SEC_PSE", "SEC_MEDIA"]
-SIZE_UNIVERSES = ["ALL", "LIQUID", "FNO", "NIFTY50", "NIFTYNEXT50", "MIDCAP150", "SMALLCAP250", "NIFTY500"]
+SIZE_UNIVERSES = ["ALL", "LIQUID", "FNO", "NIFTY50", "NIFTYNEXT50", "MIDCAP150", "SMALLCAP250", "NIFTY500", "SEC_BANK", "SEC_IT"]
 ULBL = {"ALL": "All NSE", "LIQUID": "Liquid", "FNO": "F&O", "NIFTY50": "Nifty 50", "NIFTYNEXT50": "Next 50",
         "MIDCAP150": "Midcap 150", "SMALLCAP250": "Smallcap 250", "NIFTY500": "Nifty 500",
         "SEC_BANK": "Bank", "SEC_FINSRV": "Fin Services", "SEC_IT": "IT", "SEC_PHARMA": "Pharma",
@@ -407,7 +407,7 @@ def signal_panel(df, sizes, opps=None):
         n, med, hit = brate(mask)
         br = "n/a" if n == 0 or np.isnan(med) else f"n={n} &middot; {med:+.0f}% &middot; {hit:.0f}%"
         st = '<span class="on">FIRING</span>' if on else '<span class="off">-</span>'
-        srows += f'<tr><td>{label}</td><td>{st}</td><td class="br">{br}</td><td class="rd">{read}</td></tr>'
+        srows += f'<tr><td>{label}</td><td>{st}</td><td class="br">{br}</td></tr>'
 
     reg = regime(last)
     a50 = last.get("pct_above_50dma", np.nan)
@@ -500,7 +500,7 @@ def signal_panel(df, sizes, opps=None):
     return (action + f'<div class="hero">{hero}</div>'
             f'<div class="sigwrap"><div class="sigcol">'
             f'<div class="sighdr">Signals &middot; base rate = events / +60d median Nifty / hit</div>'
-            f'<table class="sigtbl"><tr><th>Signal</th><th>Now</th><th>Base rate (2019+)</th><th>Read</th></tr>{srows}</table></div>'
+            f'<table class="sigtbl"><tr><th>Signal</th><th>Now</th><th>Base rate (2019+)</th></tr>{srows}</table></div>'
             f'<div class="sigcol"><div class="sighdr">Sector rotation &middot; %&gt;50DMA (5d slope)</div>'
             f'<div class="secstrip">{strip}</div></div></div>'
             f'<div class="posture"><b>POSTURE</b> {posture} <a class="jl" onclick="jump(&#39;guide&#39;)">what do these mean? Guide &rarr;</a></div>'
@@ -525,6 +525,19 @@ def build(csv, out, rows, repo):
             fdf["date"] = pd.to_datetime(fdf["date"])
             latest = fdf[fdf["date"] == fdf["date"].max()]
             fnoset = {s: 1 for s in latest["symbol"].astype(str)}
+        except Exception:
+            pass
+    import json as _json
+    cpath = os.path.join(os.path.dirname(os.path.abspath(csv)), "constituents.json")
+    fnogrp = {}
+    if os.path.exists(cpath):
+        try:
+            _con = _json.load(open(cpath))
+            for _u, _members in _con.items():
+                if isinstance(_members, list):
+                    _hit = [m for m in _members if m in fnoset]
+                    if _hit:
+                        fnogrp[_u] = _hit
         except Exception:
             pass
     fw = {}
@@ -621,6 +634,7 @@ def build(csv, out, rows, repo):
             .replace("__STOCKS__", json.dumps(stocks, separators=(",", ":")))
             .replace("__OPPS__", json.dumps(opps, separators=(",", ":")))
             .replace("__FNOSET__", json.dumps(fnoset, separators=(",", ":")))
+            .replace("__FNOGRP__", json.dumps(fnogrp, separators=(",", ":")))
             .replace("__FW__", json.dumps(fw, separators=(",", ":")))
             .replace("__TRADER__", json.dumps(trader, separators=(",", ":")))
             .replace("__CHANGES__", json.dumps(changes, separators=(",", ":")))
@@ -643,23 +657,23 @@ TEMPLATE = r"""<!DOCTYPE html>
 <style>
 :root{--bg:#11161a;--pnl:#171d23;--pnl2:#1d252c;--ink:#dfe6ea;--dim:#7d8d99;--rule:#2b353e;--acc:#4fa87a}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.45 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
  -webkit-font-smoothing:antialiased}
 .wrap{max-width:1780px;margin:0 auto;padding:10px 14px 44px}
 .top{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:baseline;justify-content:space-between;
  border-bottom:1px solid var(--rule);padding-bottom:7px}
 h1{font-size:15px;margin:0;display:inline;letter-spacing:.01em;font-weight:650}
-.as{color:var(--dim);font-size:10px;letter-spacing:.07em;text-transform:uppercase;margin-left:9px}
+.as{color:var(--dim);font-size:11px;letter-spacing:.07em;text-transform:uppercase;margin-left:9px}
 .tabs{display:flex;gap:2px;flex-wrap:wrap;margin:8px 0 9px}
 .tb{padding:4px 12px;border:1px solid var(--rule);background:var(--pnl);cursor:pointer;font-size:11px;
  font-weight:600;border-radius:3px;color:var(--dim);white-space:nowrap}
 .tb:hover{color:var(--ink)}
 .tb[aria-selected=true]{background:var(--acc);color:#08110c;border-color:var(--acc)}
 .ctl{display:flex;gap:3px;align-items:center;flex-wrap:wrap}
-.us{padding:3px 9px;border:1px solid var(--rule);background:var(--pnl);cursor:pointer;font-size:10.5px;
+.us{padding:3px 9px;border:1px solid var(--rule);background:var(--pnl);cursor:pointer;font-size:11.5px;
  font-weight:600;border-radius:3px;color:var(--dim);white-space:nowrap}
 .us[aria-selected=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
-select{border:1px solid var(--rule);background:var(--pnl);color:var(--ink);padding:3px 6px;border-radius:3px;font:inherit;font-size:10.5px}
+select{border:1px solid var(--rule);background:var(--pnl);color:var(--ink);padding:3px 6px;border-radius:3px;font:inherit;font-size:11.5px}
 .pane{display:none}.pane.on{display:block}
 /* pills */
 .pills{display:flex;flex-wrap:wrap;border:1px solid var(--rule);background:var(--pnl);border-radius:3px;margin-bottom:8px}
@@ -690,11 +704,11 @@ table{border-collapse:separate;border-spacing:0;width:100%;
 thead th{position:sticky;background:#0d1216;color:var(--ink);z-index:2}
 tr.grp th{top:0;font-size:8px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;
  padding:3px 4px;color:var(--dim);border-bottom:1px solid var(--rule)}
-tr.col th{top:19px;font-size:9.5px;font-weight:600;padding:3px 4px;text-align:right;white-space:nowrap;color:#9fb0bc}
+tr.col th{top:19px;font-size:10.5px;font-weight:600;padding:3px 4px;text-align:right;white-space:nowrap;color:#9fb0bc}
 th.gs,td.gs{border-left:2px solid var(--rule)}
 td{padding:2px 4px;text-align:right;white-space:nowrap;border-bottom:1px solid #202931;color:#c3ced6;font-weight:400}
 td.nb{color:var(--ink);font-weight:400}
-.tvb{font-size:10.5px;padding:4px 11px;border:1px solid #2c6b45;background:#132a1e;color:#6fd39a;border-radius:3px;cursor:pointer;font-weight:600;margin:0 4px 6px 0}
+.tvb{font-size:11.5px;padding:4px 11px;border:1px solid #2c6b45;background:#132a1e;color:#6fd39a;border-radius:3px;cursor:pointer;font-weight:600;margin:0 4px 6px 0}
 .tvb:hover{background:#183a26}
 td.nar,th.nar{max-width:38px}
 td.d,th.d{text-align:left;position:sticky;left:0;background:var(--pnl);z-index:1;color:var(--ink);
@@ -710,7 +724,7 @@ td.lk{cursor:pointer}td.lk:hover{outline:1.5px solid var(--ink);outline-offset:-
 /* charts */
 .card{border:1px solid var(--rule);background:var(--pnl);border-radius:3px;padding:11px 13px;margin-bottom:9px}
 .card h3{margin:0 0 8px;font-size:12px;font-weight:650;color:var(--ink);letter-spacing:.02em}
-.card .cap{font-size:10.5px;color:var(--dim);margin-top:6px;line-height:1.5}
+.card .cap{font-size:11.5px;color:var(--dim);margin-top:6px;line-height:1.5}
 svg{display:block;width:100%}
 /* compare / sector rows */
 .cr{display:flex;align-items:center;gap:9px;margin-bottom:3px}
@@ -722,7 +736,7 @@ svg{display:block;width:100%}
 /* regime timeline */
 .rt{display:flex;height:26px;border-radius:2px;overflow:hidden;border:1px solid var(--rule)}
 .rt div{position:relative}
-.rl{display:flex;gap:13px;flex-wrap:wrap;margin-top:8px;font-size:10.5px;color:var(--dim)}
+.rl{display:flex;gap:13px;flex-wrap:wrap;margin-top:8px;font-size:11.5px;color:var(--dim)}
 .rl i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:4px;vertical-align:-1px}
 table.runs{width:100%;font:11px ui-monospace,Menlo,monospace;margin-top:11px}
 table.runs td{color:var(--ink);font-weight:400;padding:3px 6px;text-align:left;border-bottom:1px solid #202931}
@@ -733,7 +747,7 @@ table.runs td.n{text-align:right;color:var(--dim)}
 .sc{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:5px;margin-top:9px}
 .si{background:#0d1216;border:1px solid var(--rule);border-radius:2px;padding:5px 8px;font:11px ui-monospace,Menlo,monospace}
 .si b{display:block;color:var(--acc);font-size:11.5px}
-.si span{color:var(--dim);font-size:9.5px}
+.si span{color:var(--dim);font-size:10.5px}
 /* guide */
 .gd{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:9px}
 .gs{border:1px solid var(--rule);background:var(--pnl);border-radius:3px;padding:11px 13px}
@@ -753,11 +767,11 @@ table.runs td.n{text-align:right;color:var(--dim)}
 #ov{position:fixed;inset:0;background:rgba(4,8,10,.72);display:none;align-items:center;justify-content:center;z-index:9}
 #ov.on{display:flex}
 #bx{background:var(--pnl);border:1px solid var(--rule);border-radius:4px;max-width:760px;max-height:78vh;overflow:auto;padding:15px 18px}
-#bx h3{margin:0 0 2px;font-size:13px}#bx .sub{color:var(--dim);font-size:10.5px;margin-bottom:9px}
+#bx h3{margin:0 0 2px;font-size:13px}#bx .sub{color:var(--dim);font-size:11.5px;margin-bottom:9px}
 #bx .sy{font:11px ui-monospace,Menlo,monospace;columns:4;column-gap:17px;line-height:1.75;color:#c3ced6}
 #bx button{margin-top:11px;border:1px solid var(--rule);background:var(--pnl2);color:var(--ink);
- padding:4px 12px;cursor:pointer;font:inherit;font-size:10.5px;border-radius:3px}
-.lg{display:flex;gap:10px;align-items:center;margin-top:8px;color:var(--dim);font-size:10px;flex-wrap:wrap}
+ padding:4px 12px;cursor:pointer;font:inherit;font-size:11.5px;border-radius:3px}
+.lg{display:flex;gap:10px;align-items:center;margin-top:8px;color:var(--dim);font-size:11px;flex-wrap:wrap}
 canvas.gr{width:150px;height:10px;border-radius:2px}
 .tip{position:absolute;pointer-events:none;background:#0b0f12;border:1px solid var(--rule);border-radius:3px;
  padding:5px 8px;font:10.5px ui-monospace,Menlo,monospace;color:var(--ink);opacity:0;transition:opacity .08s;
@@ -766,25 +780,25 @@ canvas.gr{width:150px;height:10px;border-radius:2px}
 .chartbox{cursor:crosshair}
 .xstrip{display:flex;gap:6px;flex-wrap:wrap;padding:7px 11px;border:1px solid var(--rule);background:var(--pnl);
  border-radius:3px;margin-bottom:8px;align-items:center}
-.xchip{font-size:10.5px;padding:2px 8px;border-radius:10px;font-weight:600;letter-spacing:.02em}
+.xchip{font-size:11.5px;padding:2px 8px;border-radius:10px;font-weight:600;letter-spacing:.02em}
 .xchip.up{background:#183a26;color:#6fd39a;border:1px solid #2c6b45}
 .xchip.dn{background:#3a1c17;color:#e0916f;border:1px solid #6b3226}
 .xmk{margin-left:5px;font-size:9px;vertical-align:1px}
 .xmk.up{color:#5cc287}.xmk.dn{color:#e07a63}
 .rtx{position:relative;height:14px;margin-top:2px;font:9px ui-monospace,Menlo,monospace;color:var(--dim)}
 .rtx span{position:absolute;top:0;white-space:nowrap}
-.jl{color:var(--acc);cursor:pointer;font-size:10px;text-decoration:underline;text-underline-offset:2px}
+.jl{color:var(--acc);cursor:pointer;font-size:11px;text-decoration:underline;text-underline-offset:2px}
 .jl:hover{color:#6fd39a}
 .seg{display:inline-flex;align-items:center;gap:3px;border:1px solid var(--rule);border-radius:4px;padding:3px 5px;background:var(--pnl)}
 .sl{font-size:8.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);margin-right:3px}
-.sb{font-size:10.5px;padding:3px 9px;border:0;background:transparent;color:var(--dim);cursor:pointer;border-radius:3px;font-weight:600}
+.sb{font-size:11.5px;padding:3px 9px;border:0;background:transparent;color:var(--dim);cursor:pointer;border-radius:3px;font-weight:600}
 .sb.on{background:var(--acc);color:#08110c}.sb:hover:not(.on){color:var(--ink)}
-.fno{color:#6f9fd8;font-size:10px;margin-left:4px;vertical-align:1px}
+.fno{color:#6f9fd8;font-size:11px;margin-left:4px;vertical-align:1px}
 .chgstrip{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:7px 11px;border:1px solid var(--rule);
  background:var(--pnl);border-radius:3px;margin-bottom:8px}
 .chgstrip.quiet{color:var(--dim)}
 .cl{font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-right:4px}
-.chip2{font-size:10.5px;padding:2px 9px;border-radius:3px;border:1px solid var(--rule);background:#0d1216;color:#c3ced6}
+.chip2{font-size:11.5px;padding:2px 9px;border-radius:3px;border:1px solid var(--rule);background:#0d1216;color:#c3ced6}
 .chip2 b{font-size:8.5px;letter-spacing:.05em;margin-right:4px}
 .insights{border:1px solid var(--rule);background:var(--pnl);border-radius:3px;padding:8px 12px;margin-bottom:9px}
 .ins{font-size:12px;line-height:1.6;color:#c3ced6}
@@ -795,7 +809,7 @@ canvas.gr{width:150px;height:10px;border-radius:2px}
 .mread .mr-line:last-of-type{margin-bottom:0}
 .mread .mr-inv b{color:#8fb8e8}
 .mread .mr-trd{color:#c9c3a8}
-.mread .mr-cap{color:var(--dim);font-size:10px;margin-top:5px}
+.mread .mr-cap{color:var(--dim);font-size:11px;margin-top:5px}
 .il{font-size:8.5px;letter-spacing:.1em;font-weight:700;margin-right:8px;display:inline-block;min-width:44px}
 .rmd{border-radius:3px;padding:8px 12px;margin-bottom:9px;font-size:12px;line-height:1.5}
 .rmd.on{background:#3a1512;border:1.5px solid #c2503c;color:#f0b8ab}
@@ -810,7 +824,7 @@ canvas.gr{width:150px;height:10px;border-radius:2px}
 .vsub{color:#c3ced6;font-size:12.5px;margin-top:4px}
 .vright{text-align:right}
 .vreg{font-size:17px;font-weight:700}
-.vmeta{color:var(--dim);font-size:10.5px;margin-top:2px;letter-spacing:.03em}
+.vmeta{color:var(--dim);font-size:11.5px;margin-top:2px;letter-spacing:.03em}
 .moredd{position:relative;display:inline-block}
 .mm{display:none;position:absolute;right:0;top:100%;margin-top:3px;background:var(--pnl);border:1px solid var(--rule);
  border-radius:4px;z-index:8;min-width:130px;box-shadow:0 6px 16px rgba(0,0,0,.5);overflow:hidden}
@@ -818,7 +832,7 @@ canvas.gr{width:150px;height:10px;border-radius:2px}
 .mi{padding:7px 13px;font-size:11.5px;color:var(--dim);cursor:pointer;white-space:nowrap}
 .mi:hover{background:var(--pnl2);color:var(--ink)}
 @media(max-width:600px){.verdict{flex-direction:column;align-items:flex-start}.vright{text-align:left}}
-footer{margin-top:9px;color:var(--dim);font-size:10px;line-height:1.55}
+footer{margin-top:9px;color:var(--dim);font-size:11px;line-height:1.55}
 @media(max-width:760px){.pill{min-width:64px}.pill.reg{min-width:100%}.ct{max-width:180px}.cn{width:72px}}
 .sigpanel{border:1px solid var(--rule);background:var(--pnl);border-radius:4px;padding:8px 10px;margin:2px 0 9px}
 .sigpanel .hero{font-size:12.5px;font-weight:600;color:var(--ink);border-bottom:1px solid var(--rule);padding-bottom:6px;margin-bottom:7px}
@@ -826,7 +840,7 @@ footer{margin-top:9px;color:var(--dim);font-size:10px;line-height:1.55}
 .sigpanel .fire{color:#c9a24f}
 .sigwrap{display:flex;gap:14px;flex-wrap:wrap}
 .sigcol{flex:1;min-width:280px}
-.sighdr{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);margin-bottom:4px}
+.sighdr{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);margin-bottom:4px}
 .sigtbl{width:100%;border-collapse:collapse;font-size:11px}
 .sigtbl th{text-align:left;color:var(--dim);font-weight:600;padding:2px 6px;border-bottom:1px solid var(--rule)}
 .sigtbl td{padding:2px 6px;border-bottom:1px solid var(--rule)}
@@ -834,45 +848,45 @@ footer{margin-top:9px;color:var(--dim);font-size:10px;line-height:1.55}
 .sigtbl .on{color:#c9a24f;font-weight:700}
 .sigtbl .off{color:var(--dim)}
 .secstrip{display:flex;flex-wrap:wrap;gap:4px}
-.chip{border:1px solid var(--rule);border-radius:3px;padding:2px 6px;font-size:10.5px;background:var(--pnl2)}
+.chip{border:1px solid var(--rule);border-radius:3px;padding:2px 6px;font-size:11.5px;background:var(--pnl2)}
 .chip b{color:var(--ink)}
-.chip i{color:var(--dim);font-style:normal;margin-left:4px;font-size:9.5px}
+.chip i{color:var(--dim);font-style:normal;margin-left:4px;font-size:10.5px}
 .chip.hi{border-color:var(--acc)}
 .chip.lo{border-color:#7a4a3e}
 .posture{margin-top:8px;padding:6px 8px;background:var(--pnl2);border-radius:3px;font-size:11.5px;color:var(--ink)}
 .posture b{color:var(--acc);margin-right:4px}
-.sigobs{margin:7px 0 0;padding-left:18px;font-size:10.5px;color:var(--dim)}
+.sigobs{margin:7px 0 0;padding-left:18px;font-size:11.5px;color:var(--dim)}
 .sigobs li{margin:1px 0}
 .leg{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 4px;padding:5px 7px;background:var(--pnl2);border-radius:3px}
-.lg-i{display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--dim)}
+.lg-i{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--dim)}
 .lg-i b{width:14px;height:3px;display:inline-block;border-radius:1px}
-.readnote{font-size:10.5px;color:var(--dim);line-height:1.5}
+.readnote{font-size:11.5px;color:var(--dim);line-height:1.5}
 .readnote b{color:var(--ink)}
 .actwrap{border:1px solid var(--acc);background:var(--pnl);border-radius:4px;padding:7px 9px;margin-bottom:8px}
-.acthd{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--acc);font-weight:700;margin-bottom:5px}
+.acthd{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--acc);font-weight:700;margin-bottom:5px}
 .actrow{display:grid;grid-template-columns:118px 1fr;gap:8px;padding:3px 0;border-bottom:1px solid var(--rule);font-size:11.5px;align-items:baseline}
 .actrow:last-child{border-bottom:0}
-.ain{font-weight:700;color:var(--ink);font-size:10.5px;letter-spacing:.02em}
+.ain{font-weight:700;color:var(--ink);font-size:11.5px;letter-spacing:.02em}
 .obar{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center;font-size:12px;margin-bottom:6px}
 .ixrow{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
-.ixchip{border:1px solid var(--rule);border-radius:3px;padding:3px 8px;font-size:10.5px;background:var(--pnl2);color:var(--dim)}
+.ixchip{border:1px solid var(--rule);border-radius:3px;padding:3px 8px;font-size:11.5px;background:var(--pnl2);color:var(--dim)}
 .ixchip b{color:var(--ink);text-transform:capitalize}.ixchip i{font-style:normal}
 .ixchip.up{border-color:var(--acc)}.ixchip.down{border-color:#8f3a2c}
-.onote2{font-size:10px;color:var(--dim);line-height:1.5;margin-bottom:8px}
+.onote2{font-size:11px;color:var(--dim);line-height:1.5;margin-bottom:8px}
 .onote2 b{color:var(--ink)}
 .ogrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 @media(max-width:820px){.ogrid{grid-template-columns:1fr}}
 .ocol{border:1px solid var(--rule);border-radius:4px;background:var(--pnl);padding:7px 8px}
 .ohd{font-weight:700;font-size:12px;color:var(--ink);border-bottom:1px solid var(--rule);padding-bottom:4px;margin-bottom:4px}
 .ohd i{font-style:normal;color:var(--dim);font-weight:600}
-.onote{font-size:9.5px;color:var(--dim);margin-bottom:5px}
+.onote{font-size:10.5px;color:var(--dim);margin-bottom:5px}
 .oemp{font-size:11px;color:var(--dim);padding:6px 0}
 .orow{display:grid;grid-template-columns:34px 84px 34px 1fr;gap:5px;align-items:baseline;padding:3px 0;border-bottom:1px solid var(--rule);font-size:11px}
 .obadge{font-size:8px;font-weight:700;letter-spacing:.03em;padding:1px 3px;border-radius:2px;text-align:center}
 .obadge.new{background:var(--acc);color:#08110c}.obadge.cont{background:var(--pnl2);color:var(--dim)}
 .osym{font-weight:700;color:var(--ink)}
-.otag{font-weight:700;font-size:10px}
-.owhy{color:var(--dim);font-size:10.5px}
+.otag{font-weight:700;font-size:11px}
+.owhy{color:var(--dim);font-size:11.5px}
 </style></head><body><div class="wrap">
 <div class="top"><div><h1>Market Breadth</h1><span class="as" id="as"></span></div>
 <div style="display:flex;gap:10px;align-items:center">
@@ -910,7 +924,7 @@ footer{margin-top:9px;color:var(--dim);font-size:10px;line-height:1.55}
 <script>
 const KEYS=__KEYS__,KI={};__KEYS__.forEach((k,i)=>KI[k]=i);
 const DATA=__DATA__,SER=__SERIES__,RUNS=__RUNS__,GROUPS=__GROUPS__,NARROW=new Set(__NARROW__),
- LISTS=__LISTS__,SIZES=__SIZES__,SECTS=__SECTS__,ULBL=__ULBL__,REPO="__REPO__",ACTIONS=__ACTIONS__,REGSIZE=__REGSIZE__,CROSS=__CROSS__,SEGCROSS=__SEGCROSS__,STOCKS=__STOCKS__,OPPS=__OPPS__,FNOSET=__FNOSET__,FW=__FW__,TRADER=__TRADER__,CHANGES=__CHANGES__;
+ LISTS=__LISTS__,SIZES=__SIZES__,SECTS=__SECTS__,ULBL=__ULBL__,REPO="__REPO__",ACTIONS=__ACTIONS__,REGSIZE=__REGSIZE__,CROSS=__CROSS__,SEGCROSS=__SEGCROSS__,STOCKS=__STOCKS__,OPPS=__OPPS__,FNOSET=__FNOSET__,FNOGRP=__FNOGRP__,FW=__FW__,TRADER=__TRADER__,CHANGES=__CHANGES__;
 const LBL={up4:"up 4%+",dn4:"down 4%+",up10:"up 10%+",dn10:"down 10%+",hi52:"at a 52-week high",
  lo52:"at a 52-week low",up25:"up 25%+ in 21 sessions",dn25:"down 25%+ in 21 sessions",
  up25q:"up 25%+ in a quarter",dn25q:"down 25%+ in a quarter",up20_5d:"up 20%+ in 5 sessions",
@@ -937,7 +951,7 @@ const fmt=(k,v)=>v==null?'':k==='nifty_close'?v.toLocaleString('en-IN',{maximumF
 /* ---- chrome ---- */
 function usel(){const e=document.getElementById('usel');
  const list=(TAB==='sectors')?SECTS:SIZES;
- e.innerHTML=list.map(u=>`<div class="us" data-u="${u}" aria-selected="${u===U}">${ULBL[u]||u}</div>`).join('');
+ e.innerHTML=list.map(u=>`<div class="us" data-u="${u}" aria-selected="${u===U}">${u==='SEC_BANK'?'Bank Nifty':u==='SEC_IT'?'Nifty IT':(ULBL[u]||u)}</div>`).join('');
  e.style.display=(TAB==='today'||TAB==='trader'||TAB==='screen'||TAB==='segments'||TAB==='guide'||TAB==='reference'||TAB==='regime'||TAB==='sectors')?'none':'flex';
  e.querySelectorAll('.us').forEach(t=>t.onclick=()=>{U=t.dataset.u;usel();draw()})}
 const PRIMARY=[['today','Today'],['opps','Opportunities'],['trader','Trader'],['charts','Charts']];
@@ -984,7 +998,7 @@ function traderPane(){const T=TRADER,el=document.getElementById('p-trader');
  let ivState=v.ivrank==null?'':v.ivrank>=70?'RICH, sellers favoured':v.ivrank<=30?'CHEAP, buyers favoured':'MID';
  let ivCol=v.ivrank==null?'var(--dim)':v.ivrank>=70?'#e07a63':v.ivrank<=30?'#6fd39a':'#c9a04a';
  const hv=v.hv||{};
- const vixCard=`<div class="card"><h3>India VIX &mdash; index options vol</h3>
+ const vixCard=`<div class="card"><h3>India VIX, index options vol</h3>
   <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:baseline;margin-bottom:9px">
    <div><span style="font-size:24px;font-weight:800">${v.level??'--'}</span><span class="cap"> VIX level</span></div>
    <div style="color:${ivCol};font-weight:700">${ivState}</div></div>
@@ -994,14 +1008,14 @@ function traderPane(){const T=TRADER,el=document.getElementById('p-trader');
    <tr><td>Realised vol 10d / 20d / 30d</td><td class="n">${hv['10']??'--'} / ${hv['20']??'--'} / ${hv['30']??'--'}%</td></tr>
    <tr><td>Variance risk premium (VIX &minus; 30d HV)</td><td class="n" style="color:${v.vrp_30d>0?'#6fd39a':'#e07a63'}">${v.vrp_30d==null?'--':(v.vrp_30d>0?'+':'')+v.vrp_30d} ${v.vrp_pctile!=null?'('+v.vrp_pctile+' pctile)':''}</td></tr>
    <tr><td>Expected move, 1 week (1&sigma;)</td><td class="n">${v.exp_move_1w_pct??'--'}%${v.exp_move_1w_pts?' &middot; '+v.exp_move_1w_pts+' pts':''}</td></tr>
-   ${v.divergence?'<tr><td style="color:#e07a63">VIX-Nifty divergence</td><td class="n" style="color:#e07a63">both rising &mdash; rally options distrust</td></tr>':''}
+   ${v.divergence?'<tr><td style="color:#e07a63">VIX-Nifty divergence</td><td class="n" style="color:#e07a63">both rising, rally options distrust</td></tr>':''}
   </tbody></table>
   <div class="cap" style="margin-top:6px">IV Rank high = premium rich (favours selling); low = cheap (favours buying). VRP is context, not a standalone trigger. 30d HV is the VIX-matched window. <a class="jl" onclick="jump('reference')">method &rarr;</a></div></div>`;
  // index squeeze cards
  const idxCards=ix.map(i=>{const st=i.state,col=st==='squeeze'?'#c9a04a':st==='expansion'?'#3f9a63':'var(--dim)';
   return `<div class="card" style="flex:1;min-width:200px"><h3>${i.label}</h3>
    <div style="font-size:18px;font-weight:700;color:${col};text-transform:uppercase">${st}</div>
-   ${i.atr_pctile!=null?`<div class="cap">ATR percentile ${i.atr_pctile}% &middot; ${i.atr_pct}% of price</div>`:'<div class="cap">needs index OHLC (arrives after next run)</div>'}</div>`;}).join('');
+   ${i.atr_pctile!=null?`<div class="cap">ATR percentile ${i.atr_pctile}% &middot; ${i.atr_pct}% of price <a class="jl" onclick="jump('guide')">?</a></div>`:'<div class="cap">needs index OHLC (arrives after next run)</div>'}</div>`;}).join('');
  // fno squeeze / events
  const evRows=(fb.events||[]).map(e=>`<tr><td class="d">${e.s}${FNOSET&&FNOSET[e.s]?'':''}</td><td class="n" style="color:${e.chg>0?'#6fd39a':'#e07a63'}">${e.chg>0?'+':''}${e.chg}%</td><td class="n">${e.px}</td></tr>`).join('');
  const sqRows=(fb.squeeze||[]).slice(0,30).map(x=>`<tr><td class="d">${x.s}${FNOSET&&FNOSET[x.s]?'':''}</td><td class="n">${x.atr_pctile}%</td><td class="n">${x.atr_pct}%</td><td class="n" style="color:${x.lean==='up'?'#6fd39a':'#e07a63'}">${x.lean==='up'?'\u2191':'\u2193'}</td><td class="n">${x.px}</td><td class="n" style="color:${x.chg>0?'#6fd39a':'#e07a63'}">${x.chg>0?'+':''}${x.chg}</td></tr>`).join('');
@@ -1029,7 +1043,7 @@ function traderPane(){const T=TRADER,el=document.getElementById('p-trader');
 
 let RSMODE='rsu',SCRSTRICT=true,SCRSEC='ALL',SCRFW=false,RSTYPE='rank';
 function fwList(sym){return (FW&&FW.map&&FW.map[sym])||[];}
-function fwCell(sym){const l=fwList(sym);if(!l.length)return '<span style="color:#4a5560">&mdash;</span>';
+function fwCell(sym){const l=fwList(sym);if(!l.length)return '<span style="color:#4a5560">, </span>';
  const col=l.length>=3?'#6fd39a':l.length>=2?'#c3d68a':'#9fb0bc';
  return `<span style="color:${col}" title="${l.join(', ')}">${l.length>=2?'\u2605 ':''}${l.length} fw</span>`;}
 function currentScreenRows(){if(!STOCKS||!STOCKS.stocks)return [];
@@ -1092,13 +1106,13 @@ function screenPane(){const el=document.getElementById('p-screen');
   if(av==null&&bv==null)return 0;if(av==null)return 1;if(bv==null)return -1;return bv-av;});
  const cap=rows.length;rows=rows.slice(0,120);
  const stg={'2':'#3f9a63','1':'#9c9a30','3':'#d8875a','4':'#c2503c','?':'#5d6b63'};
- const rcell=v=>{if(v==null)return '<td class="nb">&mdash;</td>';const sh=Math.max(0,Math.min(1,(v-1)/98));return `<td style="background:${clr(sh)};color:${cellText(sh)}">${v}</td>`;};
- const mcell=m=>{if(!m)return '<td class="nb">&mdash;</td>';const v=m[0],up=m[1]>0;
+ const rcell=v=>{if(v==null)return '<td class="nb">, </td>';const sh=Math.max(0,Math.min(1,(v-1)/98));return `<td style="background:${clr(sh)};color:${cellText(sh)}">${v}</td>`;};
+ const mcell=m=>{if(!m)return '<td class="nb">, </td>';const v=m[0],up=m[1]>0;
   const col=v>0?(up?'#6fd39a':'#c3d68a'):(up?'#e8b979':'#e07a63');
   return `<td class="nb" style="color:${col}" title="${up?'rising':'falling'}">${v>0?'+':''}${v.toFixed(0)}${up?'\u2191':'\u2193'}</td>`;};
  const body=rows.map(x=>`<tr>
   <td class="d">${x.s}${(typeof FNOSET!=='undefined'&&FNOSET[x.s])?'<span class="fno" title="F&O stock">&#8857;</span>':''}</td>
-  <td class="fg">${x.sec||'&mdash;'}</td>
+  <td class="fg">${x.sec||', '}</td>
   <td style="color:${stg[x.stg]};font-weight:700">${x.stg}</td>
 ${RSTYPE==='mans'?(mcell(x.mru)+mcell(x.mrs)+mcell(x.mrn)):(rcell(x.rsu)+rcell(x.rss)+rcell(x.rsn))}
   <td class="nb" style="color:${x.fh!=null&&x.fh>-8?'#7fd6a0':'#c3ced6'}">${x.fh==null?'':x.fh.toFixed(1)}</td>
@@ -1196,6 +1210,7 @@ function chartPane(){const s0=SER[U],d=DATA[U];if(!s0)return;
  const nz=s.nifty.filter(v=>v!=null),nlo=Math.min(...nz)*0.99,nhi=Math.max(...nz)*1.01;
  const bands=[[0,15,'#3a1c17'],[15,30,'#41291c'],[30,45,'#3d3520'],[45,60,'#25341f'],[60,100,'#1b3a26']];
  const bandsSvg=bands.map(([a,b,c])=>`<rect x="0" y="${H-b/100*H}" width="${W}" height="${(b-a)/100*H}" fill="${c}" opacity=".55"/>`).join('');
+ const bandLbl=[30,45,60].map(v=>{const y=(H-v/100*H).toFixed(1);return `<line x1="0" y1="${y}" x2="${W}" y2="${y}" stroke="#5a6b77" stroke-width=".5" stroke-dasharray="4 4" opacity=".6"/><text x="4" y="${(+y-3).toFixed(1)}" fill="#9fb2be" font-size="10">${v}</text>`;}).join('');
  const gridx=[0,.25,.5,.75,1].map(f=>`<line x1="${f*W}" y1="0" x2="${f*W}" y2="${H}" stroke="#2b353e" stroke-width=".6"/>`).join('');
  const lbl=[0,.25,.5,.75,1].map(f=>`<text x="${f*W}" y="${H+13}" fill="#7d8d99" font-size="10" text-anchor="${f?f===1?'end':'middle':'start'}">${s.d[Math.round(f*(n-1))]}</text>`).join('');
  const n4max=Math.max(1,...s.net4.map(v=>Math.abs(v||0)));
@@ -1207,9 +1222,9 @@ function chartPane(){const s0=SER[U],d=DATA[U];if(!s0)return;
   <option value="120" selected>6 months</option><option value="250">1 year</option>
   <option value="520">2 years</option><option value="0">All history</option></select></div>
  <div class="obs" id="obsC"></div>
- <div class="card"><h3>Participation vs price &mdash; ${d.label}</h3>
+ <div class="card"><h3>Participation vs price, ${d.label}</h3>
   <div class="chartbox" id="cb1" style="position:relative">
-  <svg id="svg1" viewBox="0 0 ${W} ${H+20}" preserveAspectRatio="none" style="height:200px">${bandsSvg}${gridx}
+  <svg id="svg1" viewBox="0 0 ${W} ${H+20}" preserveAspectRatio="none" style="height:200px">${bandsSvg}${bandLbl}${gridx}
    ${line(s.a50,W,H,0,100,'#5cc287')}${line(s.a200,W,H,0,100,'#6f9fd8')}
    ${(s.t2108&&s.t2108.length?line(s.t2108,W,H,0,100,'#b98bd8'):'')}
    ${line(s.nifty,W,H,nlo,nhi,'#d8b34a')}
@@ -1225,7 +1240,7 @@ function chartPane(){const s0=SER[U],d=DATA[U];if(!s0)return;
    <span class="lg-i"><b style="background:#e8d24a;width:8px;height:8px;border-radius:50%"></b>Zweig thrust</span>
    <span class="lg-i"><b style="background:#5cc287;width:8px;height:8px;border-radius:50%"></b>4% thrust</span>
   </div>
-  <div class="readnote"><b>How to read.</b> Bands mark regime zones (red below 30, amber 30 to 45, green above 60). Divergence is the signal: when gold (Nifty) rises while green (%&gt;50 DMA) falls, the index is carried by fewer stocks and the rally is fragile. When green rises while gold is flat or down, buying is building under the surface.</div></div>
+  <div class="readnote"><b>How to read.</b> Bands mark regime zones (red below 30, amber 30 to 45, green above 60). Divergence is the signal: when gold (Nifty) rises while green (%&gt;50 DMA) falls, the index is carried by fewer stocks and the rally is fragile. When green rises while gold is flat or down, buying is building under the surface. <a class="jl" onclick="jump('guide')">how to read &rarr;</a> <a class="jl" onclick="jump('reference')">learn more (Stage Analysis, StockCharts) &rarr;</a></div></div>
  <div class="card"><h3>Net 4% movers</h3>
   <div class="chartbox" id="cb2" style="position:relative">
   <svg id="svg2" viewBox="0 0 ${W} 100" preserveAspectRatio="none" style="height:110px">
@@ -1285,6 +1300,7 @@ function sectorPane(){if(!SECTS.length){document.getElementById('p-sectors').inn
  if(dns.length)cbnobs.push(`<span style="color:#e07a63">Rolling over: ${dns.map(c=>c.label).join(', ')}</span>`);
  document.getElementById('p-sectors').innerHTML=`
  <div class="obs"><b>Key observations</b>${cbnobs.join('')}</div>
+ <div class="tvsec"><span class="sl">Copy sector F&amp;O &rarr; TradingView</span>${SECTS.filter(u=>typeof FNOGRP!=='undefined'&&FNOGRP[u]).map(u=>tvChip(FNOGRP[u],ULBL[u]||u)).join(' ')||'<span style="color:var(--dim)">n/a</span>'}</div>
  ${strip}
  <div class="grid2">
   <div class="card"><h3>% above 50 DMA, by sector</h3>${rows('pct_above_50dma')}
@@ -1292,7 +1308,7 @@ function sectorPane(){if(!SECTS.length){document.getElementById('p-sectors').inn
   <div class="card"><h3>% above 200 DMA, by sector</h3>${rows('pct_above_200dma')}
    <div class="cap">Long-term structure. A sector strong here but weak on the 50 DMA is correcting inside an uptrend, which is where pullback entries live.</div></div></div>
  <div class="grid2" style="margin-top:9px">
-  <div class="card"><h3>% above 10 DMA, by sector &mdash; who is turning now</h3>${rows('pct_above_10dma','st')}
+  <div class="card"><h3>% above 10 DMA, by sector: who is turning now</h3>${rows('pct_above_10dma','st')}
    <div class="cap">Short-term momentum. Ranked the same way as the 50 DMA panel above, so a sector jumping up this list versus its 50 DMA rank is accelerating; slipping down is stalling. This is the earliest rotation tell.</div></div>
   <div class="card"><h3>% above 20 DMA, by sector</h3>${rows('pct_above_20dma','st')}
    <div class="cap">The bridge between the 10 and 50 DMA reads. A sector green on 10 and 20 but amber on 50 is in the first leg of a turn.</div></div></div>
@@ -1309,7 +1325,7 @@ function comparePane(){/* segments */
  const o=[];
  if(a!=null&&f!=null)o.push(`<span>Liquid F&amp;O basket vs full market on 50 DMA: ${f.toFixed(0)}% vs ${a.toFixed(0)}%, gap ${(f-a).toFixed(0)} pts</span>`);
  if(sm!=null&&n5!=null)o.push(`<span>Smallcap 250 vs Nifty 50: ${sm.toFixed(0)}% vs ${n5.toFixed(0)}%, ${sm>n5?'risk appetite broadening down the cap curve':'large caps holding better, defensive tilt'}</span>`);
- document.getElementById('p-segments').innerHTML=`<div class="obs"><b>Key observations</b>${o.join('')}</div>`+segStrip+
+ document.getElementById('p-segments').innerHTML=`<div class="obs"><b>Key observations</b>${o.join('')}</div><div class="tvsec"><span class="sl">Copy segment F&amp;O &rarr; TradingView</span>${SIZES.filter(u=>typeof FNOGRP!=='undefined'&&FNOGRP[u]).map(u=>tvChip(FNOGRP[u],(u==='SEC_BANK'?'Bank Nifty':u==='SEC_IT'?'Nifty IT':ULBL[u]||u))).join(' ')||'<span style="color:var(--dim)">n/a</span>'}</div>`+segStrip+
  `<div class="grid2">`+M.map(([k,l])=>`<div class="card"><h3>${l}</h3>`+
   SIZES.map(u=>{const v=get(u,k);if(v==null)return'';
    return`<div class="cr"><span class="cn">${ULBL[u]}</span><div class="ct">
@@ -1342,7 +1358,7 @@ function regimePane(){const RC=RCOL;
   <span>Now: ${cur.r}, ${cur.n} sessions</span>
   <span>Longest run: ${longest.r}, ${longest.n} sess</span>
   <span>${RUNS.length} changes / ${RUNS.reduce((s,r)=>s+r.n,0)} sessions</span></div>
- <div class="card"><h3>Regime timeline &mdash; All NSE, oldest left</h3><div class="rt">${bar}</div>
+ <div class="card"><h3>Regime timeline, All NSE, oldest left</h3><div class="rt">${bar}</div>
   <div class="rtx">${ticks}</div>
   <div class="rl">${Object.keys(RCOL).filter(k=>k!=='n/a').map(k=>`<span><i style="background:${RCOL[k]}"></i>${k}</span>`).join('')}</div>
   <div class="cap">Each block is a continuous run at one regime, width proportional to length. Month labels below the bar.
@@ -1364,7 +1380,7 @@ function scannerPane(){const d=DATA[U],iso=d.rows[0][ISO_],L=LISTS[iso]&&LISTS[i
   <span>${hits.length} names clear the multi-signal filter on ${iso}</span>
   <span>Universe: ${ULBL[U]||U}</span>
   <span>Ranked by how many bullish screens each name appears in</span></div>
- <div class="card"><h3>Momentum scanner &mdash; names appearing in three or more bullish screens</h3>
+ <div class="card"><h3>Momentum scanner, names appearing in three or more bullish screens</h3>
   ${hits.length?`<div class="sc">${hits.map(([s,v])=>`<div class="si"><b>${s}</b><span>${v.t.join(' · ')}</span></div>`).join('')}</div>`
    :'<div class="cap">No names clear the filter today. That is itself information: momentum is not concentrating.</div>'}
   <div class="cap"><b style="color:#aab8c2">How to use.</b> This is a starting list, not a buy list. A name here is moving hard and is
@@ -1392,7 +1408,7 @@ function refreshReminder(){const F=(typeof FW!=='undefined')?FW:{};
  if(!F.built)return `<div class="rmd"><b>Framework data not loaded.</b> Upload your Screener CSVs to <code>frameworks/</code> in the repo. See the refresh checklist in Reference.</div>`;
  const built=new Date(F.built),days=Math.floor((Date.now()-built)/86400000);
  const ss=F.superstar_present?'':' &middot; superstar list not yet added (placeholder)';
- if(days>=90)return `<div class="rmd on"><b>&#9888; Framework data is ${days} days old.</b> Refresh your Screener exports (and superstar list) &mdash; fundamentals update each results season. See the checklist in Reference.${ss}</div>`;
+ if(days>=90)return `<div class="rmd on"><b>&#9888; Framework data is ${days} days old.</b> Refresh your Screener exports (and superstar list), fundamentals update each results season. See the checklist in Reference.${ss}</div>`;
  if(!F.superstar_present)return `<div class="rmd soft">Framework data ${days}d old &middot; superstar list not yet added (placeholder, optional).</div>`;
  return '';}
 function changesStrip(){const C=(typeof CHANGES!=='undefined')?CHANGES:{};
@@ -1531,7 +1547,7 @@ function todayPane(){const A=ACTIONS;const el=document.getElementById('p-today')
   </tbody></table></div>`;}
 
 function referencePane(){document.getElementById('p-reference').innerHTML=`
- <div class="gs" style="grid-column:1/-1;border-color:#a07a30"><h4 style="color:#e0c68a">Framework refresh checklist &mdash; every quarter</h4>
+ <div class="gs" style="grid-column:1/-1;border-color:#a07a30"><h4 style="color:#e0c68a">Framework refresh checklist, every quarter</h4>
   <dl><dt>Why quarterly</dt><dd>The Playbook frameworks are fundamental screens (ROCE, EPS growth, Piotroski, cash conversion). Fundamentals only move when results are declared, which is quarterly in India. So refresh a few weeks after each results season, once reporting is largely complete: <b>mid-Feb</b> (Q3), <b>mid-May</b> (Q4/annual, the most important), <b>mid-Aug</b> (Q1), <b>mid-Nov</b> (Q2). The dashboard shows a red reminder once the data passes 90 days.</dd>
   <dt>How to refresh</dt><dd>1. In Screener, re-run each of your 8 saved screens and export the CSV. 2. In the repo, open <code>frameworks/</code>, click each file, pencil icon, select-all, delete, paste the new CSV, commit. Same method you used to upload them. 3. The bridge updates on the next pipeline run; the red reminder clears automatically.</dd>
   <dt>The 8 frameworks</dt><dd>Coffee Can, Consistent Compounder, GARP, Cash-is-King, Peter Lynch, Vijay Malik, Piotroski, 100-Bagger.</dd>
@@ -1554,7 +1570,7 @@ function referencePane(){document.getElementById('p-reference').innerHTML=`
  <div class="gs"><h4>India calibration, measured on this store</h4><table class="two"><tbody>
   <tr><td>Daily sigma (all NSE)</td><td>2.82%</td></tr>
   <tr><td>4% up movers, median day</td><td>4.9% of universe</td></tr>
-  <tr><td>Bonde&rsquo;s US thrust bar</td><td>4.2% &mdash; below the Indian median</td></tr>
+  <tr><td>Bonde&rsquo;s US thrust bar</td><td>4.2%, below the Indian median</td></tr>
   <tr><td>India daily tier added</td><td>6% (fires 2.6% of days)</td></tr>
   <tr><td>25%/month</td><td>transfers well (2.3%)</td></tr>
   <tr><td>50%/month</td><td>transfers almost exactly (0.26% vs US 0.28%)</td></tr>
@@ -1592,6 +1608,8 @@ function guidePane(){document.getElementById('p-guide').innerHTML=`
   <tr><td>Washout / Thrust</td><td>Washout = under 12% of stocks above their 50 DMA, seller capitulation. Thrust = a session where net 4% movers exceed 10% of the universe with a 3:1 up ratio, buyers seizing control. <b>Example:</b> a washout followed within days by a thrust is the durable-low signature; base rate n=4 since 2019, +60d +13%, every instance higher.</td></tr>
   <tr><td>Net 4% chart</td><td>Each bar is stocks up 4% minus stocks down 4% that day. <b>Example:</b> a cluster of tall green bars after a decline is a thrust (funds buying); sustained red under a flat index is quiet distribution (funds selling). A single tall red like &minus;471 is a one-day broad flush.</td></tr>
   <tr><td>Signal panel (top of page)</td><td>The fixed strip above the tabs. Left: each signal, whether it is firing now, and its base rate. Right: sectors ranked by %&gt;50 DMA with the 5-day slope. Below: a one-line posture and terse observations. This is the ten-second read; open a tab only when it flags something.</td></tr>
+  <tr><td>ATR percentile</td><td>Where today&rsquo;s average daily range sits against the stock&rsquo;s own last ~100 sessions. <b>Low (under ~20)</b> = unusually quiet, coiled, a range expansion often follows. <b>High (over ~80)</b> = already moving hard. A volatility clock, not a direction.</td></tr>
+  <tr><td>% of price (ADR)</td><td>The average daily range as a fraction of price. 0.85% means the stock typically swings about 0.85% a day. Bigger = more room to pay multiples of your risk in a session (Qullamaggie and Bonde want 4%+ for momentum); smaller = tight, better suited to premium-selling than directional bets.</td></tr>
  </tbody></table></div>
  <div class="gs"><h4>Regime, action labels</h4><table><tbody>
   <tr><td style="color:#2c8f57;font-weight:700">Aggressive</td><td>&ge;58% above 50 DMA, ratio &ge;1</td><td>Full size, buy breakouts freely</td></tr>
