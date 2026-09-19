@@ -54,6 +54,7 @@ Latest session plus dated snapshots under `data/opportunities/`. Scans the singl
 - **Base rates.** For each breadth signal (washout `%>50DMA<12`, thrust, washout+thrust, bear/bull divergence), every occurrence since 2019 is de-clustered and forward Nifty returns measured at 20/60/120 sessions; the panel shows n, +60d median and hit-rate. Real probabilities, and only meaningful when the signal fires.
 - **ATR percentile.** Where today's ATR sits against the symbol's own last ~100 sessions. Low = coiled, high = already moving. A volatility clock, not a direction.
 - **% of price (ADR).** Average daily range as a fraction of price. Bigger = more room to pay multiples of risk; momentum methods want 4%+.
+- **Bottom line.** The one-line synthesis the panel renders each session: regime, the day-over-day %>50DMA delta, and the top high-conviction longs/shorts (or the firing signal). Built from the same regime/base-rate/conviction logic, so it never disagrees with the numbers above it.
 
 ## Deliberate choices
 
