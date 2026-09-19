@@ -1603,6 +1603,17 @@ function referencePane(){document.getElementById('p-reference').innerHTML=`
   <dt>Stockbee, using breadth to avoid crashes (article, the method in the author&rsquo;s words)</dt><dd>stockbee.blogspot.com/p/mm.html</dd>
   <dt>Channels worth subscribing</dt><dd>StockCharts TV (Keller, breadth and stage), Stage Analysis (30-week, stageanalysis.net), Trade With Trend (Raunak Agarwal, India price-action)</dd>
  </dl></div>
+ <div class="gs"><h4>Next phase build (backlog, nothing running yet)</h4>
+  <dl>
+   <dt>Data tasks (quick)</dt><dd>Run the index-backfill to light up the Nifty IT context row. Add froth and 50%/month names as their own TradingView chips.</dd>
+   <dt>Engine upgrades (Qullamaggie, Raunak)</dt><dd>ADR% filter and column (rank momentum by daily range, 4%+ floor); a parabolic-short class (3+ up days, extended, tradable in any regime); breakout base-quality (a prior 30 to 100% move then a 2 to 8 week contraction on volume); a 1/3/6-month top-performers leaders view; volume dry-up on pullbacks; Bullish Percent Index as a second market gauge.</dd>
+   <dt>Opportunity scope</dt><dd>Commodities on MCX (gold, silver, crude) in the engine.</dd>
+   <dt>Analytics (optional)</dt><dd>A standalone base-rate event log with forward returns; a divergence base-rate table; a dedicated Nifty overlay on the regime timeline (the participation chart already carries one).</dd>
+   <dt>Architecture</dt><dd>Move the price store out of git (git-lfs or de-commit); GitHub Pages to view without re-rendering; a small precomputed signals.json; a "what skipped, what is stale" line in validation.</dd>
+   <dt>Ops (minor)</dt><dd>Try an odd cron minute (~14:07 UTC) to cut the GitHub scheduler delay. Consider removing the Scanner tab (redundant with Opportunities).</dd>
+   <dt>Learning</dt><dd>Turn the dashboard into a narrated learning video (script ready to write on request).</dd>
+   <dt>Tracked separately</dt><dd>Superstar / FII / DII quarterly tracker, moved to its own chat and the /superstar-tracker skill.</dd>
+  </dl></div>
  <div class="gs"><h4>The single most important idea</h4>
   <dl><dd>Breadth is most useful at extremes and close to noise between them. The 5-day ratio reaching an extreme is the actionable event, not the day-to-day wiggle. There is an asymmetry worth burning in: extremely bearish breadth is a reliable bullish signal, while extremely bullish breadth has a poor record of calling tops, because tops are gradual and bottoms are violent. Use breadth to add risk after washouts and to trim risk gradually, never to time exits precisely.</dd></dl></div>
  <div class="gs"><h4>India calibration, measured on this store</h4><table class="two"><tbody>
