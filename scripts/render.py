@@ -623,12 +623,13 @@ def build(csv, out, rows, repo):
         payload[u] = {"rows": recs, "regime": regime(last), "label": ULBL.get(u, u),
                       "asof": last["date"].strftime("%d %b %Y"), "sessions": int(len(gg)),
                       "obs": observations(gg, u)}
-        # chart series: full history (capped 520 sessions ~ 2yr) so the JS can window it
-        sub = g.tail(520)
+        # chart series: FULL history (2019-present) so the JS can window it to any period
+        sub = g
         def col(c): return [None if pd.isna(v) else round(float(v), 1) for v in sub[c]] if c in sub else []
         series[u] = {"d": [x.strftime("%d/%m/%y") for x in sub["date"]],
-                     "a50": col("pct_above_50dma"), "a200": col("pct_above_200dma"),
-                     "t2108": col("t2108"),
+                     "a10": col("pct_above_10dma"), "a20": col("pct_above_20dma"),
+                     "t2108": col("t2108"), "a50": col("pct_above_50dma"),
+                     "a150": col("pct_above_150dma"), "a200": col("pct_above_200dma"),
                      "nifty": [None if pd.isna(v) else round(float(v), 0) for v in sub["nifty_close"]],
                      "net4": [None if pd.isna(v) else int(v) for v in sub["net_4pct"]],
                      "zweig": [i for i, (_, r) in enumerate(sub.iterrows()) if bool(r.get("zweig", False))],
@@ -893,6 +894,13 @@ footer{margin-top:9px;color:var(--dim);font-size:12.5px;line-height:1.55}
 .lg-i b{width:14px;height:3px;display:inline-block;border-radius:1px}
 .readnote{font-size:13px;color:var(--dim);line-height:1.5}
 .readnote b{color:var(--ink)}
+.tcomm{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:9px;font-size:12px;color:var(--dim);line-height:1.5}
+.tcomm b{color:var(--acc);display:block;margin-bottom:2px;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em}
+@media(max-width:820px){.tcomm{grid-template-columns:1fr}}
+.metsel,.ressel{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:5px}
+.mchip,.rchip{background:var(--pnl2);border:1px solid var(--rule);color:var(--dim);border-radius:3px;padding:2px 8px;font-size:12px;cursor:pointer}
+.mchip.on{color:var(--ink);background:var(--pnl);font-weight:600}
+.rchip.on{color:var(--ink);background:var(--pnl);font-weight:600;border-color:var(--acc)}
 .actwrap{border:1px solid var(--acc);background:var(--pnl);border-radius:4px;padding:7px 9px;margin-bottom:8px}
 .acthd{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--acc);font-weight:700;margin-bottom:5px}
 .actrow{display:grid;grid-template-columns:118px 1fr;gap:8px;padding:3px 0;border-bottom:1px solid var(--rule);font-size:13px;align-items:baseline}
@@ -963,6 +971,7 @@ const LBL={up4:"up 4%+",dn4:"down 4%+",up10:"up 10%+",dn10:"down 10%+",hi52:"at 
 let U=SIZES[0]||SECTS[0],N=250,TAB="today",CHW=520;
 const RCOL={"Aggressive":"#2c8f57","Normal":"#5b8f3f","Defensive":"#9c7a30","Stand aside":"#8f3a2c","Recovery watch":"#3f7a8a","n/a":"#3a444d"};
 const D_=0,WD_=1,N_=2,F_=3,V_=4,C_=5,ISO_=6;
+let CMETS=new Set(['a50']),CRES='D';
 const gv=(r,k)=>{const i=KI[k];return i==null?null:r[V_][i]};
 const gc=(r,k)=>{const i=KI[k];return i==null?null:r[C_][i]};
 
@@ -1234,7 +1243,7 @@ function line(vals,w,h,lo,hi,col,fill){const n=vals.length;if(!n)return'';
 function chartPane(){const s0=SER[U],d=DATA[U];if(!s0)return;
  const W=1000,H=170;
  const tot=s0.d.length,st=CHW?Math.max(0,tot-CHW):0;
- const s={d:s0.d.slice(st),a50:s0.a50.slice(st),a200:s0.a200.slice(st),t2108:(s0.t2108||[]).slice(st),
+ const s={d:s0.d.slice(st),a10:(s0.a10||[]).slice(st),a20:(s0.a20||[]).slice(st),a50:s0.a50.slice(st),a150:(s0.a150||[]).slice(st),a200:s0.a200.slice(st),t2108:(s0.t2108||[]).slice(st),
    nifty:s0.nifty.slice(st),net4:s0.net4.slice(st),
    zweig:(s0.zweig||[]).filter(i=>i>=st).map(i=>i-st),thr:(s0.thr||[]).filter(i=>i>=st).map(i=>i-st)};
  const n=s.d.length;
@@ -1247,12 +1256,32 @@ function chartPane(){const s0=SER[U],d=DATA[U];if(!s0)return;
  const n4max=Math.max(1,...s.net4.map(v=>Math.abs(v||0)));
  const n4bars=s.net4.map((v,i)=>{const x=i/n*W,bw=Math.max(1.2,W/n-0.6),hh=Math.abs(v||0)/n4max*46;
   return`<rect x="${x.toFixed(1)}" y="${(v>=0?50-hh:50).toFixed(1)}" width="${bw.toFixed(1)}" height="${hh.toFixed(1)}" fill="${v>=0?'#3f9a63':'#c2503c'}"/>`}).join('');
+ const FAM=[['a10','%>10'],['a20','%>20'],['t2108','T2108'],['a50','%>50'],['a150','%>150 (30wk)'],['a200','%>200']];
+ const PAL={a10:'#8bd0c0',a20:'#b98bd8',t2108:'#d8b34a',a50:'#5a8fd8',a150:'#e0884a',a200:'#6f9fd8'};
+ function ridxOf(dates,res){if(res==='D')return dates.map((_,i)=>i);const last={},order=[];dates.forEach((ds,i)=>{const p=ds.split('/'),dt=new Date(2000+ +p[2],+p[1]-1,+p[0]);const key=res==='M'?p[2]+p[1]:(2000+ +p[2])+'-'+Math.floor((dt-new Date(dt.getFullYear(),0,1))/6048e5);if(!(key in last))order.push(key);last[key]=i;});return order.map(k=>last[k]);}
+ const ridx=ridxOf(s.d,CRES),rn=ridx.length;
+ const selM=FAM.map(x=>x[0]).filter(k=>CMETS.has(k));if(!selM.length)selM.push('a50');
+ const prim=selM[0],MLBL=(FAM.find(x=>x[0]===prim)||['','%>50'])[1];
+ let tlines='';selM.forEach(k=>{const arr=s[k]||[];const pts=ridx.map((i,j)=>`${(j/(rn-1)*W).toFixed(1)},${(H-(arr[i]||0)/100*H).toFixed(1)}`).join(' ');tlines+=`<polyline points="${pts}" fill="none" stroke="${PAL[k]}" stroke-width="1.8"/>`;});
+ let tlab='';if(selM.length===1){const arr=s[prim]||[],step=Math.max(1,Math.floor(rn/9));for(let j=0;j<rn;j+=step){const i=ridx[j],x=(j/(rn-1)*W).toFixed(1),y=(H-(arr[i]||0)/100*H).toFixed(1);tlab+=`<circle cx="${x}" cy="${y}" r="2.3" fill="#cdd6dd"/><text x="${x}" y="${(+y-6).toFixed(1)}" fill="#aeb9c2" font-size="12" text-anchor="middle">${Math.round(arr[i]||0)}</text>`;}}
+ const y50=(H-0.5*H).toFixed(1),t50=`<line x1="0" y1="${y50}" x2="${W}" y2="${y50}" stroke="#8090a0" stroke-width=".7" stroke-dasharray="5 4"/><text x="${W-4}" y="${(+y50-4).toFixed(1)}" fill="#aeb9c2" font-size="12" text-anchor="end">neutral 50</text>`;
+ const tx=[0,.25,.5,.75,1].map(ff=>`<text x="${ff*W}" y="${H+13}" fill="#7d8d99" font-size="11.5" text-anchor="${ff?ff===1?'end':'middle':'start'}">${s.d[ridx[Math.round(ff*(rn-1))]]}</text>`).join('');
+ const parr=s[prim]||[],nowv=Math.round(parr[ridx[rn-1]]||0),thi=Math.max(...ridx.map(i=>parr[i]||0)),thiJ=ridx.findIndex(i=>(parr[i]||0)===thi),tprior=Math.round(parr[ridx[Math.max(0,rn-6)]]||nowv),tdir=nowv>tprior+1?'rising':nowv<tprior-1?'falling':'flat';
+ const tleg=selM.map(k=>{const arr=s[k]||[],v=Math.round(arr[ridx[rn-1]]||0),nm=(FAM.find(x=>x[0]===k)||['',''])[1];return `<span class="lg-i"><b style="background:${PAL[k]};height:3px"></b>${nm} ${v}</span>`;}).join('');
+ const tcomm=`<div class="tcomm"><div><b>1 &middot; The move</b>${MLBL} from ${Math.round(thi)} (${s.d[ridx[thiJ]]}) to ${nowv} now, ${(nowv-Math.round(thi))>=0?'+':''}${nowv-Math.round(thi)} pts, ${nowv>=50?'above':'below'} neutral 50.</div><div><b>2 &middot; Recent</b>Last few ${CRES==='M'?'months':CRES==='W'?'weeks':'sessions'} ${tdir} (was ${tprior}). ${nowv>=60?'Broad participation.':nowv<=25?'Corrective, few holding.':'Mid-range, mixed.'}</div><div><b>3 &middot; Read</b>${nowv>=50?'Over half the universe above its 50 DMA; trend has support.':'Under half above the 50 DMA; carried by fewer stocks.'}</div></div>`;
+ const metUI=FAM.map(([k,l])=>`<button class="mchip ${CMETS.has(k)?'on':''}" style="${CMETS.has(k)?'border-color:'+PAL[k]:''}" onclick="toggleMet('${k}')">${l}</button>`).join('');
+ const resUI=[['D','Daily'],['W','Weekly'],['M','Monthly']].map(([k,l])=>`<button class="rchip ${CRES===k?'on':''}" onclick="setRes('${k}')">${l}</button>`).join('');
  document.getElementById('p-charts').innerHTML=`
  <div style="margin-bottom:7px"><select id="chw">
   <option value="21">1 month</option><option value="63">3 months</option>
   <option value="120" selected>6 months</option><option value="250">1 year</option>
   <option value="520">2 years</option><option value="0">All history</option></select></div>
  <div class="obs" id="obsC"></div>
+ <div class="card"><h3>Breadth trend, ${d.label}<span style="float:right;color:${nowv>=50?'#5cc287':'#c2503c'};font-weight:700;font-size:23px">${nowv}</span></h3>
+  <div class="metsel">${metUI}</div><div class="ressel">${resUI}</div>
+  <div class="chartbox"><svg viewBox="0 0 ${W} ${H+20}" preserveAspectRatio="none" style="height:200px">${bandsSvg}${t50}${tlines}${tlab}${tx}</svg></div>
+  <div class="leg">${tleg}</div>
+  ${tcomm}</div>
  <div class="card"><h3>Participation vs price, ${d.label}</h3>
   <div class="chartbox" id="cb1" style="position:relative">
   <svg id="svg1" viewBox="0 0 ${W} ${H+20}" preserveAspectRatio="none" style="height:200px">${bandsSvg}${bandLbl}${gridx}
@@ -1286,6 +1315,8 @@ function chartPane(){const s0=SER[U],d=DATA[U];if(!s0)return;
    ['% >200 DMA',fmtp(s.a200[i])],['Nifty',s.nifty[i]!=null?Math.round(s.nifty[i]).toLocaleString('en-IN'):'']]);
  wireTip('cb2','svg2','ch2','tip2',n,i=>[['Date',s.d[i]],['Net 4%',(s.net4[i]>0?'+':'')+(s.net4[i]??'')]]);
  obsP(d,'obsC')}
+function toggleMet(k){if(CMETS.has(k)){if(CMETS.size>1)CMETS.delete(k);}else CMETS.add(k);chartPane();}
+function setRes(k){CRES=k;chartPane();}
 function fmtp(v){return v==null?'':v.toFixed(1)+'%'}
 function wireTip(box,svg,ch,tip,n,rowFn){
  const b=document.getElementById(box),sv=document.getElementById(svg),
