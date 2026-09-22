@@ -1,1 +1,1 @@
-{"asof":"2026-09-21","changes":[{"tag":"SHORT-TERM","msg":"10 DMA breadth +23 pts (27->50)","book":"both"},{"tag":"SQUEEZE FIRE","msg":"9 F&O names broke their coil: PATANJALI (up), SOLARINDS (dn), UPL (dn), RBLBANK (up), ABCAPITAL (up), POWERGRID (dn)","book":"trade"},{"tag":"EVENT","msg":"1 F&O names moved >|8%|: OFSS -8.3%","book":"trade"}],"quiet":false,"prev_asof":"2026-09-17"}
+{"asof":"2026-09-22","changes":[{"tag":"SQUEEZE FIRE","msg":"2 F&O names broke their coil: PATANJALI (up), UPL (dn)","book":"trade"}],"quiet":false,"prev_asof":"2026-09-21"}
