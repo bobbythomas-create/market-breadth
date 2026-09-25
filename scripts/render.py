@@ -245,7 +245,7 @@ def regime_runs(g):
     return runs
 
 
-def load_lists(csv_dir, keep=8):
+def load_lists(csv_dir, keep=10):
     out = {}
     for f in sorted(glob.glob(os.path.join(csv_dir, "lists", "*.json")))[-keep:]:
         try:
@@ -536,12 +536,62 @@ def signal_panel(df, sizes, opps=None):
             f'<ol class="sigobs">{obshtml}</ol>' + f'<div class="botline"><b>Bottom line</b> {bl}</div>')
 
 
-def build(csv, out, rows, repo):
+def load_brief(data_dir, latest_iso):
+    """Mechanical brief: data/summary.json if current, else computed in-process."""
+    p = os.path.join(data_dir, "summary.json")
+    b = None
+    try:
+        if os.path.exists(p):
+            b = json.load(open(p))
+            if b.get("asof") != latest_iso:
+                b = None
+    except Exception:
+        b = None
+    if b is None:
+        try:
+            import summary as _summary
+            b = _summary.build_summary(data_dir)
+        except Exception as e:
+            print("brief skipped:", e)
+            return {}
+    for grp in ("core", "more", "sectors"):
+        for r in b.get(grp, []):
+            n = r.get("n") or 0
+            r["s50"] = shade(r["u"], "pct_above_50dma", r.get("a50"), n)
+            r["s150"] = shade(r["u"], "pct_above_150dma", r.get("a150"), n)
+            r["s200"] = shade(r["u"], "pct_above_200dma", r.get("a200"), n)
+    return b
+
+
+def load_note(path):
+    """Claude analyst note: JSON {"asof": "YYYY-MM-DD", "points": ["..."]}."""
+    if not path or not os.path.exists(path):
+        return {}
+    try:
+        n = json.load(open(path))
+        pts = [str(x) for x in (n.get("points") or []) if str(x).strip()]
+        return {"asof": n.get("asof"), "points": pts} if pts else {}
+    except Exception as e:
+        print("note skipped:", e)
+        return {}
+
+
+def load_opps_hist(data_dir, keep):
+    out = {}
+    for f in sorted(glob.glob(os.path.join(data_dir, "opportunities", "*.json")))[-keep:]:
+        try:
+            out[os.path.basename(f)[:-5]] = json.load(open(f))
+        except Exception:
+            pass
+    return out
+
+
+def build(csv, out, rows, repo, note=None, inline_days=10):
     df = pd.read_csv(csv)
     df["date"] = pd.to_datetime(df["date"])
     if "pct_20dma_gt_40dma" in df.columns and "pct_20dma_gt_50dma" not in df.columns:
         df["pct_20dma_gt_50dma"] = df["pct_20dma_gt_40dma"]
-    lists = load_lists(os.path.dirname(os.path.abspath(csv)))
+    lists = load_lists(os.path.dirname(os.path.abspath(csv)), keep=inline_days)
     stocks_path = os.path.join(os.path.dirname(os.path.abspath(csv)), "stocks.json")
     stocks = json.load(open(stocks_path)) if os.path.exists(stocks_path) else {}
     opps_path = os.path.join(os.path.dirname(os.path.abspath(csv)), "opportunities.json")
@@ -646,7 +696,15 @@ def build(csv, out, rows, repo):
     seg_crossovers = sector_crossovers(df, [u for u in sizes if u not in ("ALL",)])
 
     sigpanel = signal_panel(df, sizes, opps)
+    _dd = os.path.dirname(os.path.abspath(csv))
+    brief = load_brief(_dd, df["date"].max().strftime("%Y-%m-%d"))
+    notej = load_note(note)
+    oppshist = load_opps_hist(_dd, inline_days)
     html = (TEMPLATE
+            .replace("__BRIEF__", json.dumps(brief, separators=(",", ":")))
+            .replace("__NOTE__", json.dumps(notej, separators=(",", ":")))
+            .replace("__OPPSHIST__", json.dumps(oppshist, separators=(",", ":")))
+            .replace("__INLINEDAYS__", str(int(inline_days)))
             .replace("__SIGNALPANEL__", sigpanel)
             .replace("__DATA__", json.dumps(payload, separators=(",", ":")))
             .replace("__SERIES__", json.dumps(series, separators=(",", ":")))
@@ -678,15 +736,18 @@ def build(csv, out, rows, repo):
     for u, s in summary.items():
         print(f"[{u}] {s['asof']} n={s['n']} | >50DMA {s['a50']}% >200DMA {s['a200']}% "
               f"| R5 {s['r5']} | {s['regime']}" + (f" | {', '.join(s['flags'])}" if s["flags"] else ""))
+    if brief:
+        print(f"brief: {brief.get('asof')} | {brief.get('headline')}" + (f" | note {notej.get('asof')} ({len(notej.get('points', []))} pts)" if notej else " | no note"))
     print("validation:", open(v).read().strip().replace("\n", " / ") if os.path.exists(v) else "not found")
 
 
 TEMPLATE = r"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>Market Breadth</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="color-scheme" content="dark"><title>Market Breadth</title>
 <style>
-:root{--bg:#11161a;--pnl:#171d23;--pnl2:#1d252c;--ink:#dfe6ea;--dim:#7d8d99;--rule:#2b353e;--acc:#4fa87a}
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);background:#11161a;--bg:#11161a;--pnl:#171d23;--pnl2:#1d252c;--ink:#dfe6ea;--dim:#7d8d99;--rule:#2b353e;--acc:#4fa87a}
 *{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
  -webkit-font-smoothing:antialiased}
 .wrap{max-width:1780px;margin:0 auto;padding:10px 14px 44px}
@@ -768,7 +829,7 @@ svg{display:block;width:100%}
 .rt div{position:relative}
 .rl{display:flex;gap:13px;flex-wrap:wrap;margin-top:8px;font-size:13px;color:var(--dim)}
 .rl i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:4px;vertical-align:-1px}
-table.runs{width:100%;font:11px ui-monospace,Menlo,monospace;margin-top:11px}
+table.runs{width:100%;font:11px ui-monospace,Menlo,monospace;margin-top:11px;display:block;overflow-x:auto;max-width:100%}
 table.runs td{color:var(--ink);font-weight:400;padding:3px 6px;text-align:left;border-bottom:1px solid #202931}
 table.runs td.n{text-align:right;color:var(--dim)}
 .tw td.n{text-align:right;color:var(--ink)}
@@ -864,7 +925,7 @@ canvas.gr{width:150px;height:10px;border-radius:2px}
 @media(max-width:600px){.verdict{flex-direction:column;align-items:flex-start}.vright{text-align:left}}
 footer{margin-top:9px;color:var(--dim);font-size:12.5px;line-height:1.55}
 @media(max-width:760px){.pill{min-width:64px}.pill.reg{min-width:100%}.ct{max-width:180px}.cn{width:72px}}
-.sigpanel{border:1px solid var(--rule);background:var(--pnl);border-radius:4px;padding:8px 10px;margin:2px 0 9px}
+.sigpanel{border:1px solid var(--rule);background:var(--pnl);border-radius:4px;padding:8px 10px;margin:2px 0 9px;overflow-x:auto;max-width:100%}
 .sigpanel .hero{font-size:14.5px;font-weight:600;color:var(--ink);border-bottom:1px solid var(--rule);padding-bottom:6px;margin-bottom:7px}
 .sigpanel .hero b{color:var(--acc)}
 .sigpanel .fire{color:#c9a24f}
@@ -926,6 +987,29 @@ footer{margin-top:9px;color:var(--dim);font-size:12.5px;line-height:1.55}
 .osym{font-weight:700;color:var(--ink)}
 .otag{font-weight:700;font-size:12.5px}
 .owhy{color:var(--dim);font-size:13px}
+.brief{border:1px solid var(--rule);background:var(--pnl);border-radius:4px;padding:10px 13px 6px;margin-bottom:9px}
+.brief h2{font-size:15.5px;margin:0 0 2px;font-weight:650;color:var(--ink)}
+.brief .bsub{color:var(--dim);font-size:12.5px;margin-bottom:9px}
+.brief h4{font-size:13.5px;margin:12px 0 5px;font-weight:650;color:var(--ink)}
+.brief ul{margin:0;padding-left:18px}.brief li{font-size:13.5px;line-height:1.5;color:#c9d3da;margin:2px 0}
+.brief li b{color:var(--ink)}
+.btw{overflow-x:auto;max-width:100%}
+table.bt{width:auto;min-width:520px;border-collapse:collapse;font-size:13px}
+table.bt th{background:transparent;position:static;color:var(--dim);font-weight:600;text-align:right;padding:4px 9px;border-bottom:1px solid var(--rule);white-space:nowrap}
+table.bt th:first-child,table.bt td:first-child{text-align:left}
+table.bt td{padding:3px 9px;border-bottom:1px solid #202931;font-variant-numeric:tabular-nums}
+table.bt td.up{color:#6fc792}table.bt td.dn{color:#e07b67}
+table.bt .pos{display:inline-block;padding:1px 8px;border-radius:9px;font-size:12px;font-weight:650;color:#f0f4f6}
+.brief details{margin-top:6px}.brief summary{cursor:pointer;color:var(--dim);font-size:12.5px;padding:3px 0}
+.brief summary:hover,.brief summary:focus-visible{color:var(--ink)}
+.bflip{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:4px 18px}
+.bflip .k{font-size:12.5px;font-weight:650;margin-bottom:2px}
+.bline{margin:12px 0 6px;padding:8px 11px;border-left:3px solid var(--acc);background:var(--pnl2);font-size:13.5px;line-height:1.5;color:#d4dde3}
+.bnote{margin:0 0 10px;padding:8px 11px;border:1px solid #3a5a78;background:#16222d;border-radius:3px}
+.bnote .nh{font-size:12.5px;font-weight:650;color:#8fb8dc;margin-bottom:3px}
+.bnote.stale .nh{color:#d8b34a}
+.chip{display:inline-block;padding:0 6px;margin:1px 2px 1px 0;border-radius:3px;background:var(--pnl2);font-size:12.5px;white-space:nowrap}
+.chip i{font-style:normal;color:var(--dim);font-size:11.5px;margin-left:3px}
 </style></head><body><div class="wrap">
 <div class="top"><div><h1>Market Breadth</h1><span class="as" id="as"></span></div>
 <div style="display:flex;gap:10px;align-items:center">
@@ -964,6 +1048,7 @@ footer{margin-top:9px;color:var(--dim);font-size:12.5px;line-height:1.55}
 const KEYS=__KEYS__,KI={};__KEYS__.forEach((k,i)=>KI[k]=i);
 const DATA=__DATA__,SER=__SERIES__,RUNS=__RUNS__,GROUPS=__GROUPS__,NARROW=new Set(__NARROW__),
  LISTS=__LISTS__,SIZES=__SIZES__,SECTS=__SECTS__,ULBL=__ULBL__,REPO="__REPO__",ACTIONS=__ACTIONS__,REGSIZE=__REGSIZE__,CROSS=__CROSS__,SEGCROSS=__SEGCROSS__,STOCKS=__STOCKS__,OPPS=__OPPS__,FNOSET=__FNOSET__,FNOGRP=__FNOGRP__,FW=__FW__,TRADER=__TRADER__,CHANGES=__CHANGES__;
+const BRIEF=__BRIEF__,NOTE=__NOTE__,OPPSHIST=__OPPSHIST__,INLINEDAYS=__INLINEDAYS__;
 const LBL={up4:"up 4%+",dn4:"down 4%+",up10:"up 10%+",dn10:"down 10%+",hi52:"at a 52-week high",
  lo52:"at a 52-week low",up25:"up 25%+ in 21 sessions",dn25:"down 25%+ in 21 sessions",
  up25q:"up 25%+ in a quarter",dn25q:"down 25%+ in a quarter",up20_5d:"up 20%+ in 5 sessions",
@@ -1126,6 +1211,7 @@ function oppsPane(){
 }
 async function oppsLoad(date){
  if(date===OPPS.asof){OPPSDATA=OPPS;OPPSDATE=null;oppsPane();return;}
+ if(OPPSHIST&&OPPSHIST[date]){OPPSDATA=OPPSHIST[date];OPPSDATE=date;oppsPane();return;}
  if(REPO){try{const r=await fetch(`https://raw.githubusercontent.com/${REPO}/main/data/opportunities/${date}.json`);
    if(r.ok){OPPSDATA=await r.json();OPPSDATE=date;oppsPane();return;}}catch(e){}}
  OPPSDATE=date;OPPSDATA=null;oppsPane();
@@ -1748,8 +1834,49 @@ async function show(iso,k){const o=document.getElementById('ov');
   if(r.ok){L=await r.json();LISTS[iso]=L}}catch(e){}}
  const s=L&&L[U]&&L[U][k];
  document.getElementById('by').textContent=s&&s.length?s.join('   ')
-  :'Not available. Symbol lists are kept for the last 90 sessions.';
+  :`Not in this page (last ${INLINEDAYS} sessions are embedded). Full list: github.com/${REPO}/blob/main/data/lists/${iso}.json (kept 90 sessions).`;
  document.getElementById('bs').textContent=`${iso}${s?' · '+s.length+' stocks':''}`}
+
+/* ---- daily brief (summary.json + optional Claude note) ---- */
+const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function lumText(s){if(s==null)return'var(--ink)';const m=clr(s).match(/\d+/g);if(!m)return'var(--ink)';
+ const L=(0.299*m[0]+0.587*m[1]+0.114*m[2])/255;return L>0.55?'#10181d':'#f0f4f6'}
+function briefRows(rs){return rs.map(r=>{const c=(v,s)=>`<td style="background:${clr(s)};color:${lumText(s)}">${v==null?'n/a':v.toFixed(1)}</td>`;
+ const d=r.d5==null?'<td>n/a</td>':`<td class="${r.d5>0?'up':r.d5<0?'dn':''}">${r.d5>0?'+':''}${r.d5.toFixed(1)}</td>`;
+ return `<tr><td>${esc(r.label)} <span style="color:var(--dim);font-size:11.5px">${r.n}</span></td>${c(r.a50,r.s50)}${d}${c(r.a150,r.s150)}${c(r.a200,r.s200)}<td><span class="pos" style="background:${RCOL[r.posture]||'#3a444d'}">${esc(r.posture)}</span></td></tr>`}).join('')}
+function briefTable(rs){return `<div class="btw"><table class="bt"><thead><tr><th>Universe</th><th>%&gt;50 DMA</th><th>5d chg</th><th>%&gt;150 DMA</th><th>%&gt;200 DMA</th><th>Posture</th></tr></thead><tbody>${briefRows(rs)}</tbody></table></div>`}
+function briefHTML(){const B=BRIEF;if(!B||!B.asof)return'';
+ const dt=new Date(B.asof+'T00:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+ let note='';
+ if(NOTE&&NOTE.points&&NOTE.points.length){const st=NOTE.asof!==B.asof;
+  note=`<div class="bnote${st?' stale':''}"><div class="nh">Claude note, ${esc(NOTE.asof||'undated')}${st?' (older than the data: read with care)':''}</div><ul>${NOTE.points.map(p=>`<li>${esc(p)}</li>`).join('')}</ul></div>`}
+ const F=B.fno||{},V=F.vol||{};
+ const chips=a=>(a&&a.length)?a.map(x=>`<span class="chip">${esc(x.s)}<i>${esc(x.conv||'')}${x.state?' '+esc(x.state):''}</i></span>`).join(''):'<span style="color:var(--dim)">none</span>';
+ const idx=(F.index||[]).map(x=>`<li><b>${esc(x.label)}</b>: ${x.ret1>0?'+':''}${x.ret1}% today. ${esc(x.posture)}.</li>`).join('');
+ const vol=V.vix!=null?`<li><b>Volatility</b>: India VIX ${V.vix}, IV rank ${V.ivrank}, VRP percentile ${V.vrp_pctile}. Expected 1-week move about &plusmn;${V.exp_1w_pct}% (${V.exp_1w_pts} pts). ${esc(V.hint)}</li>`:'';
+ const more=(n,k)=>n>k?` <span style="color:var(--dim);font-size:12px">+${n-k} more on Opportunities</span>`:'';
+ const fl=B.flips||{};
+ return `<div class="brief">
+ <h2>Daily brief: ${esc(B.headline)}</h2>
+ <div class="bsub">Data through ${dt}. Mechanical read from the pipeline${NOTE&&NOTE.points&&NOTE.points.length?'; Claude note on top':''}. Research, not advice.</div>
+ ${note}
+ ${briefTable(B.core||[])}
+ <details><summary>All universes: 4 more cap segments and 12 sectors</summary>
+  <h4>Cap segments</h4>${briefTable(B.more||[])}
+  <h4>Sectors, strongest to weakest</h4>${briefTable(B.sectors||[])}
+ </details>
+ <h4>What the numbers say</h4><ul>${(B.numbers||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>
+ <h4>F&amp;O posture (mechanical)</h4><ul>${idx}${vol}
+  <li><b>Longs</b> ${chips(F.longs)}${more(F.n_longs,(F.longs||[]).length)}</li>
+  <li><b>Shorts</b> ${chips(F.shorts)}${more(F.n_shorts,(F.shorts||[]).length)}</li>
+  <li><b>Fades</b> ${chips(F.fades)}</li>
+  ${F.squeeze&&F.squeeze.length?`<li><b>Squeeze fired</b>: ${F.squeeze.map(esc).join('; ')}</li>`:''}
+  <li style="color:var(--dim)">Conviction is a ranking, not a win-rate.</li></ul>
+ <h4>What flips the read</h4><div class="bflip">
+  <div><div class="k" style="color:#6fc792">Bullish</div><ul>${(fl.bull||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>
+  <div><div class="k" style="color:#e07b67">Bearish</div><ul>${(fl.bear||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div></div>
+ <div class="bline"><b>Bottom line</b> ${esc(B.bottom)}</div>
+</div>`}
 
 /* ---- draw ---- */
 function jump(t){selectTab(t);}
@@ -1763,7 +1890,7 @@ function injectRead(paneId){
 }
 function draw(){const d=DATA[U];
  regimeBadge();
- if(TAB==='today'){todayPane();return;}
+ if(TAB==='today'){todayPane();const _b=briefHTML();if(_b)document.getElementById('p-today').insertAdjacentHTML('afterbegin',_b);return;}
  if(TAB==='screen'){screenPane();injectRead('p-screen');return;}
  if(TAB==='opps'){oppsPane();injectRead('p-opps');return;}
  if(TAB==='trader'){traderPane();injectRead('p-trader');return;}
@@ -1795,5 +1922,7 @@ if __name__ == "__main__":
     ap.add_argument("--out", default="dashboard.html")
     ap.add_argument("--rows", type=int, default=250)
     ap.add_argument("--repo", default="bobbythomas-create/market-breadth")
+    ap.add_argument("--note", default=None, help="Claude analyst note JSON {asof, points[]}; omitted in the nightly run")
+    ap.add_argument("--inline-days", type=int, default=10, help="sessions of opportunity snapshots and stock lists embedded inline")
     a = ap.parse_args()
-    build(a.csv, a.out, a.rows, a.repo)
+    build(a.csv, a.out, a.rows, a.repo, note=a.note, inline_days=a.inline_days)
