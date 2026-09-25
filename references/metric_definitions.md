@@ -49,6 +49,22 @@ Latest session plus dated snapshots under `data/opportunities/`. Scans the singl
 - `index`: `[{tag, label, ret1, trend, vol_state, posture, ...}]` for Nifty 50, Bank Nifty, Nifty IT.
 - `dates`: recent snapshot dates for the session selector.
 
+## summary.json (from summary.py): the Today-tab daily brief
+
+Latest session plus dated copies under `data/summary/`. Rule-based, reproducible, no forecasts. `render.py` uses it if its `asof` matches the CSV, otherwise computes it in-process (so the brief is never stale). Posture labels come from `render.regime()`, so the brief never disagrees with the dashboard.
+
+- `asof`, `prev_asof`, `headline` (band, 5-day trajectory, thrust confirmation).
+- `core` (ALL, NIFTY50, MIDCAP150, SMALLCAP250, SEC_BANK, SEC_IT), `more` (LIQUID, FNO, NIFTYNEXT50, NIFTY500), `sectors` (all 12, strongest to weakest by %>50DMA): each `{u, label, n, a50, d5: 5-session change in a50, a150, a200, posture, band}`. Cells graded with the same `shade()` as the Table tab.
+- **Bands** on %>50DMA: >=60 broad, 45-60 neutral, 25-45 corrective, 12-25 weak, <12 washout.
+- `numbers`: bullets from fixed rules: ALL trajectory and band; large-vs-broad gap (ALL minus NIFTY50 %>50DMA, called at >=10 pts either way); strongest/weakest sector and sector washouts; **5-day ratio roll-off detector** (ratio moved >=1.0 or >=2x AND the day that left the window held >=40% of the window's 4% movers on one side AND >=10 movers: flagged as mechanical, read the 10-day); thin-movers flag (NIFTY50 fewer than 5 4% moves in 5 sessions); base-rate signals firing today in cap universes (washout, thrust, divergence; sector washouts are NOT base-rate signals); recent thrusts in the last 5 sessions and whether ALL confirmed one in 10; 52-week highs vs lows now vs 5 sessions ago, with a cross flag.
+- `fno`: `index` (from opportunities.json), `vol` (VIX, IV rank, VRP percentile, expected 1-week move, structure hint: IV rank <=25 cheap = debit spreads, >=60 rich = credit spreads), top 6 `longs`/`shorts`/`fades` `{s, conv, state}` plus totals, `squeeze` (SQUEEZE alerts from changes.json).
+- `flips`: `bull` / `bear` trigger lists built from live values: ALL %>50DMA above 45, a thrust day in ALL, NIFTY50 %>50DMA reclaiming 30; ALL under 30, new lows retaking new highs, washout (<12).
+- `bottom`: one-paragraph mechanical synthesis.
+
+## Claude note (render.py --note)
+
+Optional JSON `{"asof": "YYYY-MM-DD", "points": ["..."]}` written by Claude at `/market-breadth` time and embedded as a labelled box at the top of the brief. Never committed and never produced by the nightly job. A note older than the data is shown with a stale label. Judgement only: it may correct or add context, and never restates numbers the brief already shows.
+
 ## Derived reads used in the panel and Trader tab
 
 - **Base rates.** For each breadth signal (washout `%>50DMA<12`, thrust, washout+thrust, bear/bull divergence), every occurrence since 2019 is de-clustered and forward Nifty returns measured at 20/60/120 sessions; the panel shows n, +60d median and hit-rate. Real probabilities, and only meaningful when the signal fires.
@@ -62,4 +78,5 @@ Latest session plus dated snapshots under `data/opportunities/`. Scans the singl
 - Counts and percentages both stored. Grade colours off percentages; counts break when the universe changes size.
 - Series BE, BZ, SM, ST, GB excluded (surveillance, SME, bond).
 - No liquidity or market-cap floor on ALL, by choice; use LIQUID or FNO for a liquid-only read.
+
 
