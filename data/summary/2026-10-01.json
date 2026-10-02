@@ -173,6 +173,17 @@
    "band": "washout"
   },
   {
+   "u": "SEC_PSE",
+   "label": "PSE",
+   "n": 20,
+   "a50": 10.0,
+   "d5": -15.0,
+   "a150": 15.0,
+   "a200": 20.0,
+   "posture": "Stand aside",
+   "band": "washout"
+  },
+  {
    "u": "SEC_BANK",
    "label": "Bank",
    "n": 14,
@@ -242,7 +253,7 @@
  "numbers": [
   "ALL %>50 DMA 33.7 to 24.5 in 5 sessions (-9.2). Band: weak.",
   "Large caps are the weak leg: Nifty 50 8.0 vs ALL 24.5, Smallcap 250 23.8 (gap 16.5 pts). Index held up by few names; broad participation underneath.",
-  "Sectors: strongest Pharma 55.0, weakest FMCG 0.0. At washout (<12): IT, Realty, Bank, Auto, Metal, Fin Services, Infra, FMCG.",
+  "Sectors: strongest Pharma 55.0, weakest FMCG 0.0. At washout (<12): IT, Realty, PSE, Bank, Auto, Metal, Fin Services, Infra, FMCG.",
   "Firing: washout in Nifty 50, bull divergence in Bank, thrust in IT, bull divergence in IT, washout in F&O, washout in Next 50.",
   "52-week highs vs lows (ALL): 49 vs 190, 5 sessions ago 52 vs 70."
  ],
@@ -273,17 +284,17 @@
    {
     "s": "ENRIN",
     "conv": "High",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "BHEL",
     "conv": "High",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "RBLBANK",
     "conv": "Med",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "SONACOMS",
@@ -310,12 +321,12 @@
    {
     "s": "MARUTI",
     "conv": "High",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "BAJAJ-AUTO",
     "conv": "High",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "AMBUJACEM",
@@ -325,7 +336,7 @@
    {
     "s": "CROMPTON",
     "conv": "High",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "RECLTD",

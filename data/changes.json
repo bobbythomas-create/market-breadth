@@ -1,1 +1,1 @@
-{"asof":"2026-10-01","changes":[{"tag":"SHORT-TERM","msg":"10 DMA breadth -10 pts (30->21)","book":"both"},{"tag":"SQUEEZE FIRE","msg":"15 F&O names broke their coil: MOTHERSON (dn), RECLTD (dn), IOC (dn), AMBER (dn), NTPC (dn), PFC (dn)","book":"trade"}],"quiet":false,"prev_asof":"2026-09-29"}
+{"asof":"2026-10-01","changes":[{"tag":"SQUEEZE FIRE","msg":"15 F&O names broke their coil: MOTHERSON (dn), RECLTD (dn), IOC (dn), AMBER (dn), NTPC (dn), PFC (dn)","book":"trade"}],"quiet":false,"prev_asof":"2026-10-01"}
