@@ -854,8 +854,9 @@ table.runs td.n{text-align:right;color:var(--dim)}
 .si b{display:block;color:var(--acc);font-size:13px}
 .si span{color:var(--dim);font-size:12px}
 /* guide */
-.gd{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:9px}
+.gd{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:9px;align-items:start}
 .gs{border:1px solid var(--rule);background:var(--pnl);border-radius:3px;padding:11px 13px}
+.gs table.two{width:100%}
 .gs h4{margin:0 0 7px;font-size:12.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--acc);font-weight:650}
 .gs dl{margin:0;font-size:13px;line-height:1.6}
 .gs dt{font-weight:700;color:var(--ink);margin-top:7px}
@@ -1005,6 +1006,8 @@ footer{margin-top:9px;color:var(--dim);font-size:12.5px;line-height:1.55}
 .osym{font-weight:700;color:var(--ink)}
 .otag{font-weight:700;font-size:12.5px}
 .owhy{color:var(--dim);font-size:13px}
+.oexpr{display:block;color:var(--dim);font-size:11.5px;margin-top:3px;line-height:1.45;border-top:1px dotted var(--rule);padding-top:3px}
+.oexpr b{color:#9ab0a2}
 .brief{border:1px solid var(--rule);background:var(--pnl);border-radius:4px;padding:10px 13px 6px;margin-bottom:9px}
 .brief h2{font-size:15.5px;margin:0 0 2px;font-weight:650;color:var(--ink)}
 .brief .bsub{color:var(--dim);font-size:12.5px;margin-bottom:9px}
@@ -1182,8 +1185,8 @@ function usel(){const e=document.getElementById('usel');
  e.innerHTML=list.map(u=>`<div class="us" data-u="${u}" aria-selected="${u===U}">${u==='SEC_BANK'?'Bank Nifty':u==='SEC_IT'?'Nifty IT':(ULBL[u]||u)}</div>`).join('');
  e.style.display=(TAB==='today'||TAB==='trader'||TAB==='screen'||TAB==='segments'||TAB==='guide'||TAB==='reference'||TAB==='regime'||TAB==='sectors')?'none':'flex';
  e.querySelectorAll('.us').forEach(t=>t.onclick=()=>{U=t.dataset.u;usel();draw()})}
-const PRIMARY=[['today','Today'],['opps','Opportunities'],['trader','Trader'],['charts','Charts']];
-const MORE=[['screen','Screen'],['table','Table'],['sectors','Sectors'],['segments','Segments'],['regime','Regime'],['scanner','Scanner'],['guide','Guide'],['reference','Reference']];
+const PRIMARY=[['today','Today'],['opps','Opportunities'],['trader','Trader'],['screen','Screen'],['sectors','Sectors'],['charts','Charts']];
+const MORE=[['table','Table'],['segments','Segments'],['regime','Regime'],['scanner','Scanner'],['guide','Guide'],['reference','Reference']];
 function selectTab(k){TAB=k;
  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='p-'+TAB));
  document.querySelectorAll('.tb').forEach(x=>x.setAttribute('aria-selected',x.dataset.t===k));
@@ -1285,13 +1288,19 @@ function currentScreenRows(){if(!STOCKS||!STOCKS.stocks)return [];
  return r.slice().sort((a,b)=>{const av=gv2(a),bv=gv2(b);if(av==null)return 1;if(bv==null)return -1;return bv-av;});}
 let OPPSDATA=null,OPPSDATE=null;
 function convColor(t){return t==='High'?'#5cc287':t==='Med'?'#c9a24f':'#8a94a0';}
-function oppsCol(title,arr,note){
+/* concrete way to express each idea (defined-risk first for the retail user) */
+function oExpr(side){const s=(side||'').toLowerCase();
+ if(s==='long')return 'buy the breakout or a pullback to the 10/20 DMA; stop under the base. Defined-risk: bull call spread.';
+ if(s==='short')return 'sell a breakdown or lower high; stop above resistance. Defined-risk: bear put spread.';
+ if(s==='fade')return 'counter-trend, small size, stop just past the extreme. Options: credit spread against the move.';
+ return 'confirm direction on your own chart first.';}
+function oppsCol(title,arr,note,side){
  if(!arr||!arr.length)return `<div class="ocol"><div class="ohd">${title}</div><div class="oemp">none this session</div></div>`;
  const rows=arr.map(r=>`<div class="orow">
    <span class="obadge ${r.state==='NEW'?'new':'cont'}">${r.state||''}</span>
    <span class="osym">${r.s}</span>
    <span class="otag" style="color:${convColor(r.tag)}">${r.tag}</span>
-   <span class="owhy">${r.why}</span></div>`).join('');
+   <span class="owhy">${r.why}<span class="oexpr"><b>Trade:</b> ${oExpr(side)}</span></span></div>`).join('');
  return `<div class="ocol"><div class="ohd">${title} <i>${arr.length}</i></div><div class="onote">${note}</div>${rows}</div>`;
 }
 function oppsPane(){
@@ -1309,9 +1318,9 @@ function oppsPane(){
   <div style="margin:2px 0 7px">${tvChip((O.longs||[]).map(r=>r.s),'Longs')} ${tvChip((O.shorts||[]).map(r=>r.s),'Shorts')} ${tvChip((O.fades||[]).map(r=>r.s),'Fades')} ${tvChip([].concat((O.longs||[]).map(r=>r.s),(O.shorts||[]).map(r=>r.s),(O.fades||[]).map(r=>r.s)),'All ideas')}</div>
   <div class="onote2">Every idea is a two-way possibility; the tape decides direction. Conviction = move size, volume and trend alignment. Fades are counter-trend, lower conviction by design. Confirm on your chart and option chain before acting. Research, not advice. <b>NEW</b> fired this session, <b>CONT</b> also present in the prior one.</div>
   <div class="ogrid">
-   ${oppsCol('Longs',O.longs,'up-momentum, RS leaders, Stage 2, breakouts, episodic pivots')}
-   ${oppsCol('Shorts',O.shorts,'down-momentum, RS laggards, Stage 4, breakdowns, gap-downs')}
-   ${oppsCol('Fades: mean reversion',O.fades,'stretched from the 20 DMA after a fast move, exhaustion or reversal bar')}
+   ${oppsCol('Longs',O.longs,'up-momentum, RS leaders, Stage 2, breakouts, episodic pivots','long')}
+   ${oppsCol('Shorts',O.shorts,'down-momentum, RS laggards, Stage 4, breakdowns, gap-downs','short')}
+   ${oppsCol('Fades: mean reversion',O.fades,'stretched from the 20 DMA after a fast move, exhaustion or reversal bar','fade')}
   </div>`;
 }
 async function oppsLoad(date){
@@ -1898,16 +1907,19 @@ function guidePane(){document.getElementById('p-guide').innerHTML=`
    <tr><td>+X%</td><td>Median Nifty return 60 sessions after the signal fired.</td></tr>
    <tr><td>hit%</td><td>Share of those events where Nifty was higher 60 days later.</td></tr>
   </tbody></table>
-  <table style="margin-top:9px"><thead><tr><th style="width:150px">Signal</th><th style="width:40%">Condition</th><th>Read (2019+ base rate)</th></tr></thead><tbody>
-   <tr><td>Washout &lt;12%</td><td>% above 50 DMA falls below 12 (capitulation)</td><td>n20, +10%, 90%. Rare, high-payoff bottoming signal.</td></tr>
-   <tr><td>Washout+Thrust</td><td>A washout, then a thrust day</td><td>n4, +13%, 100%. Best signal, tiny sample.</td></tr>
-   <tr><td>Thrust</td><td>Up-4% movers &ge;10% of universe AND &ge;3&times; down-4%</td><td>n58, +6%, 78%. The durable-low signature.</td></tr>
-   <tr><td>Bear divergence</td><td>Nifty at a 20-day high, breadth not confirming</td><td>n90, +3%, 66%. Weak warning, raise stops.</td></tr>
-   <tr><td>Bull divergence</td><td>Nifty at a 20-day low, breadth not confirming</td><td>n45, +3%, 62%. Weak bottoming hint.</td></tr>
+  <div class="cap" style="margin:4px 0 7px">Shown on: the <a class="jl" onclick="jump('today')">Today</a> tab (Signals strip) and the top action panel on every other tab.</div>
+  <table style="margin-top:4px"><thead><tr><th style="width:118px">Signal</th><th style="width:28%">Condition (as the dashboard computes it)</th><th style="width:16%">Base rate 2019+</th><th>Example action / trade</th></tr></thead><tbody>
+   <tr><td>Washout &lt;12%</td><td>% above 50 DMA falls below 12 (seller capitulation)</td><td>n20 &middot; +10% &middot; 90%</td><td>Accumulate in tranches, do not chase. Index: buy Nifty on a reversal bar or a bull call spread. Stocks: start Stage-1 basers.</td></tr>
+   <tr><td>Washout+Thrust</td><td>A washout, then a thrust day (within ~10 sessions)</td><td>n4 &middot; +13% &middot; 100%</td><td>Strongest long. Add on strength: long Nifty future or bull call spread; buy leaders breaking out of bases.</td></tr>
+   <tr><td>Thrust</td><td>Net 4% movers (up minus down) &ge;10% of the universe AND the 5-day up:down ratio &ge;3</td><td>n58 &middot; +6% &middot; 78%</td><td>Momentum re-entry. Press leading-sector breakouts; long future or debit call spread, stop under the thrust day&rsquo;s low.</td></tr>
+   <tr><td>Bear divergence</td><td>Nifty at a 20-day high while % above 40 DMA is not</td><td>n90 &middot; +3% &middot; 66%</td><td>Not a sell. Raise stops on open longs; buy a protective put or put on a collar over index exposure.</td></tr>
+   <tr><td>Bull divergence</td><td>Nifty at a 20-day low while % above 40 DMA is not</td><td>n45 &middot; +3% &middot; 62%</td><td>Early bottoming hint. Build a watchlist; take a small defined-risk long (bull call spread) only once price confirms.</td></tr>
   </tbody></table>
-  <div class="cap">Base rates are the only real probabilities on the dashboard, and they count only when a signal fires. Small samples: weight them, do not worship them.</div></div>
+  <div class="cap">Base rates are the only real probabilities here, and they count only when a signal fires. Small samples: weight them, do not worship them.</div>
+  <div class="cap" style="border-left:2px solid var(--acc);padding-left:8px;margin-top:6px"><b style="color:var(--acc)">Does this hold in India?</b> Directionally, yes. These rates are measured on this store&rsquo;s own 2019-present NSE data, and independent work finds Nifty breadth thrusts were followed by a higher index roughly 77 to 81% of the time over the next three months since 2011. The honest caveat is modest sample sizes and some in-sample fitting, which is why the signals are a probability tilt, not a switch.</div></div>
 
  <div class="gs" style="grid-column:1/-1"><h4>The NIFTY F&amp;O action line, how it is built</h4>
+  <div class="cap" style="margin-bottom:6px">Shown on: the <a class="jl" onclick="jump('today')">Today</a> F&amp;O table, and the NIFTY F&amp;O line on the top panel of other tabs.</div>
   <table><tbody>
    <tr><td style="width:180px">"sell rallies, bear structures"</td><td>The directional lean, from Nifty's trend. Trend down = lean short, favour bearish structures (bear put or bear call spread). Trend up = the opposite; range = favour premium-selling.</td></tr>
    <tr><td>"flip long only on a washout &lt;12"</td><td>The contrarian trigger, from breadth. Weak breadth alone is not a buy; only a capitulation washout under 12 flips the lean to long, where the base rate is +10% median at 60 days, 90% hit.</td></tr>
@@ -1915,21 +1927,22 @@ function guidePane(){document.getElementById('p-guide').innerHTML=`
   </tbody></table></div>
 
  <div class="gd">
- <div class="gs" style="grid-column:1/-1"><h4>Key terms, with a worked example each</h4><table><tbody>
-  <tr><td>T2108</td><td>Percent of stocks above their 40-day moving average. The oldest breadth gauge, from Worden. <b>Example:</b> T2108 = 47 means 47% of the universe is above its 40 DMA, a middling tape. Below 20 is oversold, above 80 is overbought. It leads the 50 DMA reading slightly because 40 &lt; 50.</td></tr>
-  <tr><td>Defensive extreme</td><td>The 5-day ratio at or below 0.5, meaning 4% decliners outnumbered 4% gainers roughly 2:1 or worse over the week. <b>Example:</b> a ratio of 0.45 after a three-week slide has historically sat within days of an intermediate low. It is a signal to prepare to buy, not to sell.</td></tr>
-  <tr><td>Aggressive extreme</td><td>The 5-day ratio at or above 5.0, India-calibrated (US uses 2.0). <b>Example:</b> a ratio of 6 after a washout confirms a thrust and says press long exposure. The same reading late in an extended run means less.</td></tr>
-  <tr><td>5-day ratio</td><td>Sum of the last five sessions&rsquo; 4%-up counts divided by the sum of 4%-down counts. <b>Example:</b> 90 up-4% and 30 down-4% over the week gives 3.0, firmly bullish but short of the 5.0 extreme.</td></tr>
-  <tr><td>Divergence (bear)</td><td>Nifty prints a fresh 20-session high while % above 50 DMA does not. <b>Example:</b> index at a new high but 50 DMA breadth stuck at 52 versus 60 a month ago means fewer stocks carry the tape; raise stops.</td></tr>
-  <tr><td>Zweig thrust</td><td>The 10-day advance ratio races from below 0.40 to above 0.615 within ten sessions. <b>Example:</b> it has fired only nine times in this record; each marked the start of a strong multi-week advance. Rare and unambiguous.</td></tr>
-  <tr><td>Crossover (10&times;50)</td><td>A sector&rsquo;s % above 10 DMA crossing above its % above 50 DMA. <b>Example:</b> Infra 10 DMA rising through its 50 DMA line is the first sign a laggard is turning up, before the 50 DMA itself improves. The Sectors tab flags these.</td></tr>
-  <tr><td>Base rate</td><td>When this exact signal fired before, what usually happened next. <b>Example:</b> &ldquo;Washout n=20, +60d +10%, hit 90%&rdquo; means washout has fired 20 separate times since 2019; the middle outcome was Nifty +10% sixty sessions later, and it was higher in 18 of the 20. It is odds, not a promise, and the sample is small, so weight it rather than worship it.</td></tr>
-  <tr><td>Rolling over</td><td>A breadth number that was high and rising and has turned down, like a ball cresting a hill. <b>Example:</b> IT went from 50% of its stocks above the 50 DMA to 30% and falling. Momentum is flipping from up to down: cut longs, start watching for shorts.</td></tr>
-  <tr><td>Washout / Thrust</td><td>Washout = under 12% of stocks above their 50 DMA, seller capitulation. Thrust = a session where net 4% movers exceed 10% of the universe with a 3:1 up ratio, buyers seizing control. <b>Example:</b> a washout followed within days by a thrust is the durable-low signature; base rate n=4 since 2019, +60d +13%, every instance higher.</td></tr>
-  <tr><td>Net 4% chart</td><td>Each bar is stocks up 4% minus stocks down 4% that day. <b>Example:</b> a cluster of tall green bars after a decline is a thrust (funds buying); sustained red under a flat index is quiet distribution (funds selling). A single tall red like &minus;471 is a one-day broad flush.</td></tr>
-  <tr><td>Signal panel (top of page)</td><td>The fixed strip above the tabs. Left: each signal, whether it is firing now, and its base rate. Right: sectors ranked by %&gt;50 DMA with the 5-day slope. Below: a one-line posture and terse observations. This is the ten-second read; open a tab only when it flags something.</td></tr>
-  <tr><td>ATR percentile</td><td>Where today&rsquo;s average daily range sits against the stock&rsquo;s own last ~100 sessions. <b>Low (under ~20)</b> = unusually quiet, coiled, a range expansion often follows. <b>High (over ~80)</b> = already moving hard. A volatility clock, not a direction.</td></tr>
-  <tr><td>% of price (ADR)</td><td>The average daily range as a fraction of price. 0.85% means the stock typically swings about 0.85% a day. Bigger = more room to pay multiples of your risk in a session (Qullamaggie and Bonde want 4%+ for momentum); smaller = tight, better suited to premium-selling than directional bets.</td></tr>
+ <div class="gs" style="grid-column:1/-1"><h4>Key terms, definition and a worked example</h4>
+  <div class="cap" style="margin-bottom:6px">Where each shows: breadth terms on <a class="jl" onclick="jump('today')">Today</a> and the panel; ADR / ATR on the <a class="jl" onclick="jump('trader')">Trader</a> tab; crossovers on the <a class="jl" onclick="jump('sectors')">Sectors</a> tab; the net-4% chart on <a class="jl" onclick="jump('charts')">Charts</a>.</div>
+  <table><thead><tr><th style="width:130px">Term</th><th style="width:46%">Definition</th><th>Worked example</th></tr></thead><tbody>
+  <tr><td>T2108</td><td>Percent of stocks above their 40-day moving average, the oldest breadth gauge (Worden). Below 20 oversold, above 80 overbought. Leads the 50 DMA slightly because 40 &lt; 50.</td><td>T2108 = 47 means 47% of the universe is above its 40 DMA, a middling tape.</td></tr>
+  <tr><td>Defensive extreme</td><td>The 5-day ratio at or below 0.5: 4% decliners outnumbered 4% gainers about 2:1 over the week. A signal to prepare to buy, not to sell.</td><td>A ratio of 0.45 after a three-week slide has historically sat within days of an intermediate low.</td></tr>
+  <tr><td>Aggressive extreme</td><td>The 5-day ratio at or above 5.0, India-calibrated (US uses 2.0).</td><td>A ratio of 6 after a washout confirms a thrust: press long exposure. The same reading late in an extended run means less.</td></tr>
+  <tr><td>5-day ratio</td><td>Sum of the last five sessions&rsquo; 4%-up counts divided by the sum of 4%-down counts.</td><td>90 up-4% and 30 down-4% over the week gives 3.0: firmly bullish, short of the 5.0 extreme.</td></tr>
+  <tr><td>Divergence (bear)</td><td>Nifty prints a fresh 20-session high while % above <b>40 DMA</b> does not; fewer stocks carry the tape. Raise stops, it is not a sell.</td><td>Index at a new high but 40 DMA breadth stuck at 52 versus 60 a month ago.</td></tr>
+  <tr><td>Zweig thrust</td><td>The 10-day advance ratio races from below 0.40 to above 0.615 within ten sessions. Rare and unambiguous.</td><td>It has fired only nine times in this record; each marked the start of a strong multi-week advance.</td></tr>
+  <tr><td>Crossover (10&times;50)</td><td>A sector&rsquo;s % above 10 DMA crossing above its % above 50 DMA, the first sign a laggard is turning up. The Sectors tab flags these.</td><td>Infra 10 DMA rising through its 50 DMA line, before the 50 DMA itself improves.</td></tr>
+  <tr><td>Base rate</td><td>When this exact signal fired before, what usually happened next. Odds, not a promise; samples are small, so weight them.</td><td>&ldquo;Washout n=20, +60d +10%, hit 90%&rdquo;: washout fired 20 times since 2019; median outcome Nifty +10% sixty sessions later, higher in 18 of 20.</td></tr>
+  <tr><td>Rolling over</td><td>A breadth number that was high and rising and has turned down. Momentum flipping up to down: cut longs, watch for shorts.</td><td>IT went from 50% of its stocks above the 50 DMA to 30% and falling.</td></tr>
+  <tr><td>Washout / Thrust</td><td>Washout = under 12% of stocks above their 50 DMA (capitulation). Thrust = net 4% movers exceed 10% of the universe and the 5-day up:down ratio is at least 3 (buyers seizing control).</td><td>A washout followed within days by a thrust is the durable-low signature; base rate n=4 since 2019, +60d +13%, every instance higher.</td></tr>
+  <tr><td>Net 4% chart</td><td>Each bar is stocks up 4% minus stocks down 4% that day.</td><td>Tall green bars after a decline = a thrust (funds buying); sustained red under a flat index = quiet distribution; a single tall red like &minus;471 is a one-day flush.</td></tr>
+  <tr><td>ATR percentile</td><td>Where today&rsquo;s average daily range sits against the stock&rsquo;s own last ~100 sessions. Low (under ~20) = coiled, expansion often follows; high (over ~80) = already moving. A volatility clock, not a direction.</td><td>ATR percentile 12% means the stock is quieter than 88% of its own recent year: coiled.</td></tr>
+  <tr><td>% of price (ADR)</td><td>Average daily range as a fraction of price. Bigger = more room to pay multiples of risk (momentum wants 4%+); smaller = better for premium-selling.</td><td>0.85% means the stock typically swings about 0.85% a day.</td></tr>
  </tbody></table></div>
  <div class="gs"><h4>Regime, action labels</h4><table><tbody>
   <tr><td style="color:#2c8f57;font-weight:700">Aggressive</td><td>&ge;58% above 50 DMA, ratio &ge;1</td><td>Full size, buy breakouts freely</td></tr>
