@@ -453,11 +453,13 @@ def signal_panel(df, sizes, opps=None):
     hero = (f'REGIME <b>{reg}</b> &middot; ALL {a50:.0f}% &gt;50DMA &middot; '
             f'<span class="fire">{fire}</span> &middot; {gap} (Nifty50 {n50:.0f}%)')
 
-    obs = [f"regime {reg}, ALL {a50:.0f}% &gt;50DMA",
-           f"cap spread: Nifty50 {n50:.0f} vs Small {sc:.0f} ({gap})",
-           (f"sector lead {chips[0][0]} {chips[0][1]:.0f}, lag {chips[-1][0]} {chips[-1][1]:.0f}" if chips else "sectors n/a"),
-           f"signals: {fire}"]
-    obshtml = "".join(f"<li>{o}</li>" for o in obs)
+    _n50 = "n/a" if pd.isna(n50) else f"{n50:.0f}"
+    _sc = "n/a" if pd.isna(sc) else f"{sc:.0f}"
+    obs = [("Regime", f"{reg} &middot; ALL {a50:.0f}% &gt;50DMA"),
+           ("Cap spread", f"Nifty50 {_n50} vs Small {_sc} ({gap})"),
+           ("Sector lead / lag", (f"{chips[0][0]} {chips[0][1]:.0f} &middot; {chips[-1][0]} {chips[-1][1]:.0f}" if chips else "n/a")),
+           ("Signals", fire)]
+    obshtml = "".join(f'<div class="sot"><span class="sok">{k}</span><span class="sov">{v}</span></div>' for k, v in obs)
 
     # Instrument-first action list (Bob trades Nifty F&O, Bank Nifty F&O, stock F&O), probability-honest
     op = opps or {}
@@ -533,7 +535,7 @@ def signal_panel(df, sizes, opps=None):
             f'<div class="sigcol"><div class="sighdr">Sector rotation &middot; %&gt;50DMA (5d slope)</div>'
             f'<div class="secstrip">{strip}</div></div></div>'
             f'<div class="posture"><b>POSTURE</b> {posture} <a class="jl" onclick="jump(&#39;guide&#39;)">what do these mean? Guide &rarr;</a></div>'
-            f'<ol class="sigobs">{obshtml}</ol>' + f'<div class="botline"><b>Bottom line</b> {bl}</div>')
+            f'<div class="sigobs">{obshtml}</div>' + f'<div class="botline"><b>Bottom line</b> {bl}</div>')
 
 
 def load_brief(data_dir, latest_iso):
@@ -755,11 +757,13 @@ body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 ui-sans-serif,
  border-bottom:1px solid var(--rule);padding-bottom:7px}
 h1{font-size:17px;margin:0;display:inline;letter-spacing:.01em;font-weight:650}
 .as{color:var(--dim);font-size:12.5px;letter-spacing:.07em;text-transform:uppercase;margin-left:9px}
-.tabs{display:flex;gap:2px;flex-wrap:wrap;margin:8px 0 9px}
-.tb{padding:4px 12px;border:1px solid var(--rule);background:var(--pnl);cursor:pointer;font-size:12.5px;
- font-weight:600;border-radius:3px;color:var(--dim);white-space:nowrap}
-.tb:hover{color:var(--ink)}
-.tb[aria-selected=true]{background:var(--acc);color:#08110c;border-color:var(--acc)}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin:8px 0 11px;padding:5px;background:var(--pnl);
+ border:1px solid var(--rule);border-radius:8px}
+.tb{padding:6px 15px;border:1px solid transparent;background:transparent;cursor:pointer;font-size:13px;
+ font-weight:600;border-radius:5px;color:var(--dim);white-space:nowrap;transition:background .12s,color .12s}
+.tb:hover:not([aria-selected=true]){color:var(--ink);background:var(--pnl2)}
+.tb[aria-selected=true]{background:var(--acc);color:#07140d;border-color:var(--acc);font-weight:700;
+ box-shadow:0 1px 5px rgba(79,168,122,.4)}
 .ctl{display:flex;gap:3px;align-items:center;flex-wrap:wrap}
 .us{padding:3px 9px;border:1px solid var(--rule);background:var(--pnl);cursor:pointer;font-size:13px;
  font-weight:600;border-radius:3px;color:var(--dim);white-space:nowrap}
@@ -946,8 +950,12 @@ footer{margin-top:9px;color:var(--dim);font-size:12.5px;line-height:1.55}
 .chip.lo{border-color:#7a4a3e}
 .posture{margin-top:8px;padding:6px 8px;background:var(--pnl2);border-radius:3px;font-size:13px;color:var(--ink)}
 .posture b{color:var(--acc);margin-right:4px}
-.sigobs{margin:7px 0 0;padding-left:18px;font-size:13px;color:var(--dim)}
-.sigobs li{margin:1px 0}
+.sigobs{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin:8px 0 0}
+.sot{background:var(--pnl2);border:1px solid var(--rule);border-radius:3px;padding:5px 9px;min-width:0}
+.sok{display:block;font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);font-weight:600;margin-bottom:2px}
+.sov{display:block;font-size:12.5px;color:var(--ink);line-height:1.35}
+@media(max-width:860px){.sigobs{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.sigobs{grid-template-columns:1fr}}
 .botline{margin-top:8px;padding:7px 9px;background:var(--pnl2);border-left:2px solid var(--acc);border-radius:3px;font-size:13px;color:var(--ink);line-height:1.55}
 .botline b{color:var(--acc);margin-right:5px}
 .leg{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 4px;padding:5px 7px;background:var(--pnl2);border-radius:3px}
@@ -1004,10 +1012,30 @@ table.bt .pos{display:inline-block;padding:1px 8px;border-radius:9px;font-size:1
 .brief summary:hover,.brief summary:focus-visible{color:var(--ink)}
 .bflip{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:4px 18px}
 .bflip .k{font-size:12.5px;font-weight:650;margin-bottom:2px}
+/* brief read-out tables (numbers, F&O posture, flips) */
+.ntbl{width:100%;border-collapse:collapse;font-size:13.5px}
+.ntbl td{padding:4px 10px 4px 0;border-bottom:1px solid #202931;vertical-align:top;line-height:1.5}
+.ntbl tr:last-child td{border-bottom:0}
+.ntbl .nk{color:var(--ink);font-weight:650;white-space:nowrap;width:1%;padding-right:16px}
+.ntbl .nv{color:#c9d3da;font-variant-numeric:tabular-nums;white-space:nowrap;padding-right:16px}
+.ntbl .nv.up{color:#6fc792}.ntbl .nv.dn{color:#e07b67}
+.ntbl .nv2{color:#c9d3da}
+.ntbl.fno .nk{color:var(--acc)}
+.bnw{font-size:12px;color:var(--dim);margin:5px 0 2px}
+.bempty{font-size:13px;color:var(--dim);padding:4px 0}
+.ftbl{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:2px}
+.ftbl th{text-align:left;padding:4px 12px 5px 0;border-bottom:1px solid var(--rule);font-weight:650;font-size:12.5px}
+.ftbl th.bull{color:#6fc792}.ftbl th.bear{color:#e07b67}
+.ftbl td{width:50%;vertical-align:top;padding:5px 16px 5px 0}
+.ftbl ul{margin:0;padding-left:17px}.ftbl li{font-size:13px;line-height:1.5;color:#c9d3da;margin:3px 0}
 .bline{margin:12px 0 6px;padding:8px 11px;border-left:3px solid var(--acc);background:var(--pnl2);font-size:13.5px;line-height:1.5;color:#d4dde3}
-.bnote{margin:0 0 10px;padding:8px 11px;border:1px solid #3a5a78;background:#16222d;border-radius:3px}
-.bnote .nh{font-size:12.5px;font-weight:650;color:#8fb8dc;margin-bottom:3px}
-.bnote.stale .nh{color:#d8b34a}
+.bnote{margin:4px 0 13px;padding:11px 14px;border:1px solid var(--acc);border-left:4px solid var(--acc);
+ background:#14211b;border-radius:5px}
+.bnote .nh{font-size:12px;font-weight:700;color:var(--acc);margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em}
+.bnote .nh span{color:var(--dim);font-weight:600;text-transform:none;letter-spacing:0;margin-left:7px}
+.bnote ul{margin:0;padding-left:18px}.bnote li{font-size:14px;line-height:1.55;color:#dfe8ec;margin:4px 0}
+.bnote li b{color:#fff}
+.bnote.stale{border-color:#d8b34a;border-left-color:#d8b34a;background:#231c0f}.bnote.stale .nh{color:#d8b34a}
 .chip{display:inline-block;padding:0 6px;margin:1px 2px 1px 0;border-radius:3px;background:var(--pnl2);font-size:12.5px;white-space:nowrap}
 .chip i{font-style:normal;color:var(--dim);font-size:11.5px;margin-left:3px}
 </style></head><body><div class="wrap">
@@ -1137,9 +1165,11 @@ function traderPane(){const T=TRADER,el=document.getElementById('p-trader');
   </tbody></table>
   <div class="cap" style="margin-top:6px">IV Rank high = premium rich (favours selling); low = cheap (favours buying). VRP is context, not a standalone trigger. 30d HV is the VIX-matched window. <a class="jl" onclick="jump('reference')">method &rarr;</a></div></div>`;
  // index squeeze cards
+ const SG={squeeze:'coiled: trading range unusually tight, a range expansion often follows',expansion:'already moving: range unusually wide',normal:'average range: neither coiled nor stretched'};
  const idxCards=ix.map(i=>{const st=i.state,col=st==='squeeze'?'#c9a04a':st==='expansion'?'#3f9a63':'var(--dim)';
   return `<div class="card" style="flex:1;min-width:200px"><h3>${i.label}</h3>
    <div style="font-size:20.5px;font-weight:700;color:${col};text-transform:uppercase">${st}</div>
+   ${SG[st]?`<div class="cap" style="margin-top:1px">${SG[st]}</div>`:''}
    ${i.atr_pctile!=null?`<div class="cap">ATR percentile ${i.atr_pctile}% &middot; ${i.atr_pct}% of price <a class="jl" onclick="jump('guide')">?</a></div>`:'<div class="cap">needs index OHLC (arrives after next run)</div>'}</div>`;}).join('');
  // fno squeeze / events
  const evRows=(fb.events||[]).map(e=>`<tr><td class="d">${e.s}${FNOSET&&FNOSET[e.s]?'':''}</td><td class="n" style="color:${e.chg>0?'#6fd39a':'#e07a63'}">${e.chg>0?'+':''}${e.chg}%</td><td class="n">${e.px}</td></tr>`).join('');
@@ -1275,8 +1305,8 @@ ${RSTYPE==='mans'?(mcell(x.mru)+mcell(x.mrs)+mcell(x.mrn)):(rcell(x.rsu)+rcell(x
   <span>as of ${STOCKS.asof}</span>
   ${(()=>{const c=STOCKS.stocks.filter(x=>x.strict&&fwList(x.s).length>0);return c.length?`<span style="color:#6fd39a">${c.length} strict names also in your Playbook</span>`:'';})()}</div>
  <div class="tw"><table><thead><tr>
-  <th class="d">Symbol</th><th>Sector</th><th>Stg</th>
-<th>${RSTYPE==='mans'?'MR-U':'RS-U'}</th><th>${RSTYPE==='mans'?'MR-Sec':'RS-Sec'}</th><th>${RSTYPE==='mans'?'MR-N50':'RS-N50'}</th><th>% frm hi</th><th>% frm lo</th><th>Price</th><th>Template</th><th>Playbook</th></tr></thead>
+  <th class="d" title="NSE trading symbol. &#8857; marks an F&O stock.">Symbol</th><th title="Nifty sector the stock belongs to">Sector</th><th title="Weinstein stage: 2 advancing (buy), 1 basing, 3 topping, 4 declining (avoid/short)">Stg</th>
+<th title="${RSTYPE==='mans'?'Mansfield relative strength vs the whole universe. Positive and rising = leadership.':'Relative strength percentile (1-99) vs the whole universe. Higher = stronger.'}">${RSTYPE==='mans'?'MR-U':'RS-U'}</th><th title="${RSTYPE==='mans'?'Mansfield RS vs the stock&#39;s own sector':'RS percentile vs the stock&#39;s own Nifty sector'}">${RSTYPE==='mans'?'MR-Sec':'RS-Sec'}</th><th title="${RSTYPE==='mans'?'Mansfield RS vs Nifty 50':'RS percentile vs Nifty 50'}">${RSTYPE==='mans'?'MR-N50':'RS-N50'}</th><th title="Percent below the 52-week high. Closer to 0 = near its high.">% frm hi</th><th title="Percent above the 52-week low">% frm lo</th><th title="Last close (INR)">Price</th><th title="8/8 = passes all 8 Stage-2 trend-template rules; otherwise how many of 8 it passes">Template</th><th title="How many of your framework screens the name appears in. &#9733; = 2 or more.">Playbook</th></tr></thead>
   <tbody>${body}</tbody></table></div>
  <div class="cap" style="margin-top:6px">Stage: <span style="color:#3f9a63">2 advancing</span> &middot; <span style="color:#9c9a30">1 basing</span> &middot; <span style="color:#d8875a">3 topping</span> &middot; <span style="color:#c2503c">4 declining</span>.
   RS is a 1-99 percentile of weighted 3/6/12-month return. RS-Sec ranks within the stock&rsquo;s Nifty sector; blank means the stock is not in a tracked sector index.
@@ -1529,7 +1559,7 @@ function scannerPane(){const d=DATA[U],iso=d.rows[0][ISO_],L=LISTS[iso]&&LISTS[i
   <span>Universe: ${ULBL[U]||U}</span>
   <span>Ranked by how many bullish screens each name appears in</span></div>
  <div class="card"><h3>Momentum scanner, names appearing in three or more bullish screens</h3>
-  ${hits.length?`<div class="sc">${hits.map(([s,v])=>`<div class="si"><b>${s}</b><span>${v.t.join(' · ')}</span></div>`).join('')}</div>`
+  ${hits.length?`<div style="margin-bottom:7px">${tvChip(hits.map(([s])=>s),'Scanner')}</div><div class="sc">${hits.map(([s,v])=>`<div class="si"><b>${s}</b><span>${v.t.join(' · ')}</span></div>`).join('')}</div>`
    :'<div class="cap">No names clear the filter today. That is itself information: momentum is not concentrating.</div>'}
   <div class="cap"><b style="color:#aab8c2">How to use.</b> This is a starting list, not a buy list. A name here is moving hard and is
    confirmed across several timeframes at once, which is where continuation is most likely. Weight 52-week highs and 20%-in-5-days
@@ -1595,13 +1625,14 @@ function narrativeRead(){
  const vixWord=v.ivrank==null?'':v.ivrank<=20?'options very cheap':v.ivrank<=35?'options cheap':v.ivrank>=70?'options rich':'vol mid-range';
  const fired=(T.fno&&T.fno.fired)||[];
  if(v.level!=null){
-  trd=`Trading: India VIX ${v.level} (IV Rank ${v.ivrank}), ${vixWord}. Nifty ${nifty.state||'--'}${nifty.state==='squeeze'?' (coiled)':''}.`;
+  const nsg={squeeze:' (coiled, range tight)',expansion:' (range already wide)',normal:' (average range)'}[nifty.state]||'';
+  trd=`Trading: India VIX ${v.level} (IV Rank ${v.ivrank}), ${vixWord}. Nifty ${nifty.state||'--'}${nsg}.`;
   const cheapCoil=v.ivrank!=null&&v.ivrank<=35&&nifty.state==='squeeze';
   if(cheapCoil&&a10trend==='recovering')trd+=` Cheap vol + coil + firming breadth: expansion setup leaning up. Favour owning optionality over selling premium.`;
   else if(cheapCoil)trd+=` Cheap vol + coil: expansion setup loading. Own optionality.`;
   else if(v.ivrank>=70)trd+=` Rich vol: premium-selling favoured into strength.`;
   if(v.exp_move_1w_pts)trd+=` Expected 1-week move \u00b1${v.exp_move_1w_pts} pts.`;
-  if(fired.length)trd+=` ${fired.length} squeeze fires today.`;
+  if(fired.length)trd+=` ${fired.length} squeeze fire${fired.length>1?'s':''} today (${fired.length} F&O stock${fired.length>1?'s':''} just broke a tight range).`;
  }
  return `<div class="mread">
    <div class="mr-line mr-inv">${inv}</div>
@@ -1845,16 +1876,31 @@ function briefRows(rs){return rs.map(r=>{const c=(v,s)=>`<td style="background:$
  const d=r.d5==null?'<td>n/a</td>':`<td class="${r.d5>0?'up':r.d5<0?'dn':''}">${r.d5>0?'+':''}${r.d5.toFixed(1)}</td>`;
  return `<tr><td>${esc(r.label)} <span style="color:var(--dim);font-size:11.5px">${r.n}</span></td>${c(r.a50,r.s50)}${d}${c(r.a150,r.s150)}${c(r.a200,r.s200)}<td><span class="pos" style="background:${RCOL[r.posture]||'#3a444d'}">${esc(r.posture)}</span></td></tr>`}).join('')}
 function briefTable(rs){return `<div class="btw"><table class="bt"><thead><tr><th>Universe</th><th>%&gt;50 DMA</th><th>5d chg</th><th>%&gt;150 DMA</th><th>%&gt;200 DMA</th><th>Posture</th></tr></thead><tbody>${briefRows(rs)}</tbody></table></div>`}
+/* split a sentence into a (topic, detail) pair for a 2-col read */
+function splitNum(s){s=String(s||'');let i=s.indexOf(': ');
+ if(i>0&&i<=30)return[s.slice(0,i),s.slice(i+2)];
+ i=s.indexOf('. ');if(i>0&&i<=24)return[s.slice(0,i),s.slice(i+2)];
+ return['',s];}
+function numbersTable(arr){if(!arr||!arr.length)return'<div class="bempty">nothing flagged today</div>';
+ return `<table class="ntbl"><tbody>${arr.map(x=>{const[a,b]=splitNum(x);
+  return `<tr><td class="nk">${esc(a)}</td><td class="nv">${esc(b)}</td></tr>`}).join('')}</tbody></table>`;}
+function flipTable(fl){const row=(arr)=>(arr&&arr.length)?arr.map(x=>`<li>${esc(x)}</li>`).join(''):'<li style="color:var(--dim)">none</li>';
+ return `<table class="ftbl"><thead><tr><th class="bull">Flips bullish if</th><th class="bear">Flips bearish if</th></tr></thead>
+  <tbody><tr><td><ul>${row(fl.bull)}</ul></td><td><ul>${row(fl.bear)}</ul></td></tr></tbody></table>`;}
 function briefHTML(){const B=BRIEF;if(!B||!B.asof)return'';
  const dt=new Date(B.asof+'T00:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
  let note='';
  if(NOTE&&NOTE.points&&NOTE.points.length){const st=NOTE.asof!==B.asof;
-  note=`<div class="bnote${st?' stale':''}"><div class="nh">Claude note, ${esc(NOTE.asof||'undated')}${st?' (older than the data: read with care)':''}</div><ul>${NOTE.points.map(p=>`<li>${esc(p)}</li>`).join('')}</ul></div>`}
+  note=`<div class="bnote${st?' stale':''}"><div class="nh">What matters today <span>Claude note &middot; ${esc(NOTE.asof||'undated')}${st?' &middot; older than the data, read with care':''}</span></div><ul>${NOTE.points.map(p=>`<li>${esc(p)}</li>`).join('')}</ul></div>`}
  const F=B.fno||{},V=F.vol||{};
  const chips=a=>(a&&a.length)?a.map(x=>`<span class="chip">${esc(x.s)}<i>${esc(x.conv||'')}${x.state?' '+esc(x.state):''}</i></span>`).join(''):'<span style="color:var(--dim)">none</span>';
- const idx=(F.index||[]).map(x=>`<li><b>${esc(x.label)}</b>: ${x.ret1>0?'+':''}${x.ret1}% today. ${esc(x.posture)}.</li>`).join('');
- const vol=V.vix!=null?`<li><b>Volatility</b>: India VIX ${V.vix}, IV rank ${V.ivrank}, VRP percentile ${V.vrp_pctile}. Expected 1-week move about &plusmn;${V.exp_1w_pct}% (${V.exp_1w_pts} pts). ${esc(V.hint)}</li>`:'';
  const more=(n,k)=>n>k?` <span style="color:var(--dim);font-size:12px">+${n-k} more on Opportunities</span>`:'';
+ // F&O posture as a table: index rows + a volatility row
+ const idxRows=(F.index||[]).map(x=>`<tr><td class="nk">${esc(x.label)}</td><td class="nv ${x.ret1>0?'up':x.ret1<0?'dn':''}">${x.ret1>0?'+':''}${x.ret1}%</td><td class="nv2">${esc(x.posture)}</td></tr>`).join('');
+ const volRow=V.vix!=null?`<tr><td class="nk">Volatility</td><td class="nv">VIX ${V.vix}</td><td class="nv2">IV rank ${V.ivrank}, VRP pctile ${V.vrp_pctile}; expected 1-week move &plusmn;${V.exp_1w_pct}% (${V.exp_1w_pts} pts). ${esc(V.hint)}</td></tr>`:'';
+ // name row with a TradingView copy chip
+ const nameRow=(label,arr,n)=>{const syms=(arr||[]).map(x=>x.s);
+  return `<tr><td class="nk">${label}</td><td class="nv2" colspan="2">${chips(arr)}${more(n,(arr||[]).length)} ${syms.length?tvChip(syms,label):''}</td></tr>`;}
  const fl=B.flips||{};
  return `<div class="brief">
  <h2>Daily brief: ${esc(B.headline)}</h2>
@@ -1865,16 +1911,17 @@ function briefHTML(){const B=BRIEF;if(!B||!B.asof)return'';
   <h4>Cap segments</h4>${briefTable(B.more||[])}
   <h4>Sectors, strongest to weakest</h4>${briefTable(B.sectors||[])}
  </details>
- <h4>What the numbers say</h4><ul>${(B.numbers||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>
- <h4>F&amp;O posture (mechanical)</h4><ul>${idx}${vol}
-  <li><b>Longs</b> ${chips(F.longs)}${more(F.n_longs,(F.longs||[]).length)}</li>
-  <li><b>Shorts</b> ${chips(F.shorts)}${more(F.n_shorts,(F.shorts||[]).length)}</li>
-  <li><b>Fades</b> ${chips(F.fades)}</li>
-  ${F.squeeze&&F.squeeze.length?`<li><b>Squeeze fired</b>: ${F.squeeze.map(esc).join('; ')}</li>`:''}
-  <li style="color:var(--dim)">Conviction is a ranking, not a win-rate.</li></ul>
- <h4>What flips the read</h4><div class="bflip">
-  <div><div class="k" style="color:#6fc792">Bullish</div><ul>${(fl.bull||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>
-  <div><div class="k" style="color:#e07b67">Bearish</div><ul>${(fl.bear||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div></div>
+ <h4>What the numbers say</h4>${numbersTable(B.numbers||[])}
+ <h4>F&amp;O posture (mechanical)</h4>
+ <table class="ntbl fno"><tbody>
+  ${idxRows}${volRow}
+  ${nameRow('Longs',F.longs,F.n_longs)}
+  ${nameRow('Shorts',F.shorts,F.n_shorts)}
+  ${nameRow('Fades',F.fades,F.n_fades)}
+  ${F.squeeze&&F.squeeze.length?`<tr><td class="nk">Squeeze fired</td><td class="nv2" colspan="2">${F.squeeze.map(esc).join('; ')} <span style="color:var(--dim)">(coil just broke, a move may be starting)</span></td></tr>`:''}
+ </tbody></table>
+ <div class="bnw">Conviction is a ranking of setup quality, not a win-rate.</div>
+ <h4>What flips the read</h4>${flipTable(fl)}
  <div class="bline"><b>Bottom line</b> ${esc(B.bottom)}</div>
 </div>`}
 
