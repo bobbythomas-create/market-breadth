@@ -368,7 +368,7 @@ def signal_panel(df, sizes, opps=None):
     observations. Rendered as static HTML so it never depends on the client JS."""
     a = df[df.universe == "ALL"].sort_values("date").reset_index(drop=True)
     if len(a) < 130 or "nifty_close" not in a:
-        return ""
+        return "", []
     last = a.iloc[-1]
     nif = a["nifty_close"].values
 
@@ -400,6 +400,7 @@ def signal_panel(df, sizes, opps=None):
             ("Bull divergence", bull, "weak")]
     firing_now = []
     srows = ""
+    signals_out = []
     for label, mask, read in defs:
         on = bool(mask[-1])
         if on:
@@ -408,6 +409,11 @@ def signal_panel(df, sizes, opps=None):
         br = "n/a" if n == 0 or np.isnan(med) else f"n={n} &middot; {med:+.0f}% &middot; {hit:.0f}%"
         st = '<span class="on">FIRING</span>' if on else '<span class="off">-</span>'
         srows += f'<tr><td>{label}</td><td>{st}</td><td class="br">{br}</td></tr>'
+        signals_out.append({"name": label.replace("&lt;", "<"),
+                            "n": int(n),
+                            "med": None if (n == 0 or np.isnan(med)) else round(float(med)),
+                            "hit": None if (n == 0 or np.isnan(hit)) else round(float(hit)),
+                            "firing": on})
 
     reg = regime(last)
     a50 = last.get("pct_above_50dma", np.nan)
@@ -535,7 +541,7 @@ def signal_panel(df, sizes, opps=None):
             f'<div class="sigcol"><div class="sighdr">Sector rotation &middot; %&gt;50DMA (5d slope)</div>'
             f'<div class="secstrip">{strip}</div></div></div>'
             f'<div class="posture"><b>POSTURE</b> {posture} <a class="jl" onclick="jump(&#39;guide&#39;)">what do these mean? Guide &rarr;</a></div>'
-            f'<div class="sigobs">{obshtml}</div>' + f'<div class="botline"><b>Bottom line</b> {bl}</div>')
+            f'<div class="sigobs">{obshtml}</div>' + f'<div class="botline"><b>Bottom line</b> {bl}</div>'), signals_out
 
 
 def load_brief(data_dir, latest_iso):
@@ -697,7 +703,7 @@ def build(csv, out, rows, repo, note=None, inline_days=10):
     crossovers = sector_crossovers(df, sects)
     seg_crossovers = sector_crossovers(df, [u for u in sizes if u not in ("ALL",)])
 
-    sigpanel = signal_panel(df, sizes, opps)
+    sigpanel, signals_list = signal_panel(df, sizes, opps)
     _dd = os.path.dirname(os.path.abspath(csv))
     brief = load_brief(_dd, df["date"].max().strftime("%Y-%m-%d"))
     notej = load_note(note)
@@ -708,6 +714,7 @@ def build(csv, out, rows, repo, note=None, inline_days=10):
             .replace("__OPPSHIST__", json.dumps(oppshist, separators=(",", ":")))
             .replace("__INLINEDAYS__", str(int(inline_days)))
             .replace("__SIGNALPANEL__", sigpanel)
+            .replace("__SIGNALS__", json.dumps(signals_list, separators=(",", ":")))
             .replace("__DATA__", json.dumps(payload, separators=(",", ":")))
             .replace("__SERIES__", json.dumps(series, separators=(",", ":")))
             .replace("__RUNS__", json.dumps(runs, separators=(",", ":")))
@@ -747,23 +754,26 @@ TEMPLATE = r"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="color-scheme" content="dark"><title>Market Breadth</title>
 <style>
-:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);background:#11161a;--bg:#11161a;--pnl:#171d23;--pnl2:#1d252c;--ink:#dfe6ea;--dim:#7d8d99;--rule:#2b353e;--acc:#4fa87a}
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);background:#11161a;--bg:#11161a;--pnl:#171d23;--pnl2:#1d252c;--ink:#dfe6ea;--dim:#7d8d99;--rule:#2b353e;--acc:#4fa87a;--good:#3f9a63;--warn:#caa24f;--bad:#c2503c;--sans:"IBM Plex Sans",ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;--mono:"IBM Plex Mono",var(--mono)}
 *{box-sizing:border-box}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
+body{margin:0;background:var(--bg);color:var(--ink);font:15.5px/1.5 var(--sans);
  -webkit-font-smoothing:antialiased}
 .wrap{max-width:1780px;margin:0 auto;padding:10px 14px 44px}
 .top{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:baseline;justify-content:space-between;
  border-bottom:1px solid var(--rule);padding-bottom:7px}
 h1{font-size:17px;margin:0;display:inline;letter-spacing:.01em;font-weight:650}
 .as{color:var(--dim);font-size:12.5px;letter-spacing:.07em;text-transform:uppercase;margin-left:9px}
-.tabs{display:flex;gap:4px;flex-wrap:wrap;margin:8px 0 11px;padding:5px;background:var(--pnl);
- border:1px solid var(--rule);border-radius:8px}
-.tb{padding:6px 15px;border:1px solid transparent;background:transparent;cursor:pointer;font-size:13px;
- font-weight:600;border-radius:5px;color:var(--dim);white-space:nowrap;transition:background .12s,color .12s}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin:8px 0 12px;padding:5px;background:var(--pnl);
+ border:1px solid var(--rule);border-radius:9px}
+.tb{flex:1;text-align:center;padding:8px 10px;border:1px solid transparent;background:transparent;cursor:pointer;font-size:13px;
+ font-weight:600;border-radius:6px;color:var(--dim);white-space:nowrap;transition:background .12s,color .12s}
 .tb:hover:not([aria-selected=true]){color:var(--ink);background:var(--pnl2)}
 .tb[aria-selected=true]{background:var(--acc);color:#07140d;border-color:var(--acc);font-weight:700;
  box-shadow:0 1px 5px rgba(79,168,122,.4)}
+.moredd{flex:0 0 auto;position:relative}
+#moreBtn{color:var(--ink);padding-inline:16px}
 .ctl{display:flex;gap:3px;align-items:center;flex-wrap:wrap}
 .us{padding:3px 9px;border:1px solid var(--rule);background:var(--pnl);cursor:pointer;font-size:13px;
  font-weight:600;border-radius:3px;color:var(--dim);white-space:nowrap}
@@ -775,7 +785,7 @@ select{border:1px solid var(--rule);background:var(--pnl);color:var(--ink);paddi
 .pill{padding:5px 13px;border-right:1px solid var(--rule);min-width:86px}
 .pill:last-child{border-right:0}
 .pill .k{font-size:9px;letter-spacing:.11em;text-transform:uppercase;color:var(--dim)}
-.pill .v{font:17px/1.25 ui-monospace,"SF Mono",Menlo,monospace;font-variant-numeric:tabular-nums;margin-top:2px}
+.pill .v{font:17px/1.25 var(--mono);font-variant-numeric:tabular-nums;margin-top:2px}
 .pill.reg{min-width:184px}.pill.reg .v{font-family:inherit;font-size:14.5px;font-weight:700}
 /* bars */
 .bars{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:9px 18px;
@@ -784,7 +794,7 @@ select{border:1px solid var(--rule);background:var(--pnl);color:var(--ink);paddi
 .bl{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-bottom:3px}
 .bt{height:17px;background:#0d1216;border-radius:2px;position:relative;overflow:hidden}
 .bf{height:100%;border-radius:2px}
-.bv{position:absolute;right:6px;top:0;font:12.5px/17px ui-monospace,Menlo,monospace;color:var(--ink);text-shadow:0 0 4px #000}
+.bv{position:absolute;right:6px;top:0;font:12.5px/17px var(--mono);color:var(--ink);text-shadow:0 0 4px #000}
 /* obs */
 .obs{border:1px solid var(--rule);background:var(--pnl);border-radius:3px;padding:7px 13px;margin-bottom:8px;
  font-size:13px;line-height:1.7;color:var(--ink)}
@@ -795,7 +805,7 @@ select{border:1px solid var(--rule);background:var(--pnl);color:var(--ink);paddi
 /* table */
 .tw{overflow:auto;max-height:72vh;border:1px solid var(--rule);border-radius:3px;background:var(--pnl)}
 table{border-collapse:separate;border-spacing:0;width:100%;
- font:11px ui-monospace,"SF Mono",Menlo,monospace;font-variant-numeric:tabular-nums}
+ font:11px var(--mono);font-variant-numeric:tabular-nums}
 thead th{position:sticky;background:#0d1216;color:var(--ink);z-index:2}
 tr.grp th{top:0;font-size:9px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;
  padding:3px 4px;color:var(--dim);border-bottom:1px solid var(--rule)}
@@ -826,21 +836,21 @@ svg{display:block;width:100%}
 .cn{width:96px;font-size:12.5px;font-weight:600;text-align:right;flex-shrink:0;color:#b7c3cc}
 .ct{flex:1;height:16px;background:#0d1216;border-radius:2px;position:relative;overflow:hidden;max-width:460px}
 .cf{height:100%;border-radius:2px}
-.cv{font:11px ui-monospace,Menlo,monospace;width:46px;text-align:right;flex-shrink:0;color:var(--ink)}
+.cv{font:11px var(--mono);width:46px;text-align:right;flex-shrink:0;color:var(--ink)}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:9px}
 /* regime timeline */
 .rt{display:flex;height:26px;border-radius:2px;overflow:hidden;border:1px solid var(--rule)}
 .rt div{position:relative}
 .rl{display:flex;gap:13px;flex-wrap:wrap;margin-top:8px;font-size:13px;color:var(--dim)}
 .rl i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:4px;vertical-align:-1px}
-table.runs{width:100%;font:11px ui-monospace,Menlo,monospace;margin-top:11px;display:block;overflow-x:auto;max-width:100%}
+table.runs{width:100%;font:11px var(--mono);margin-top:11px;display:block;overflow-x:auto;max-width:100%}
 table.runs td{color:var(--ink);font-weight:400;padding:3px 6px;text-align:left;border-bottom:1px solid #202931}
 table.runs td.n{text-align:right;color:var(--dim)}
 .tw td.n{text-align:right;color:var(--ink)}
 .tw td.nb{color:var(--ink)}
 /* scanner */
 .sc{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:5px;margin-top:9px}
-.si{background:#0d1216;border:1px solid var(--rule);border-radius:2px;padding:5px 8px;font:11px ui-monospace,Menlo,monospace}
+.si{background:#0d1216;border:1px solid var(--rule);border-radius:2px;padding:5px 8px;font:11px var(--mono)}
 .si b{display:block;color:var(--acc);font-size:13px}
 .si span{color:var(--dim);font-size:12px}
 /* guide */
@@ -855,7 +865,7 @@ table.runs td.n{text-align:right;color:var(--dim)}
 .gs table td{color:#aab8c2;font-weight:400;padding:3px 6px;border-bottom:1px solid #202931;text-align:left;
  vertical-align:top;word-break:break-word;overflow-wrap:anywhere;white-space:normal}
 .gs table td:first-child{color:var(--ink);width:34%}
-.gs table.two td:last-child{text-align:right;font-family:ui-monospace,Menlo,monospace;color:var(--ink);width:26%;white-space:nowrap}
+.gs table.two td:last-child{text-align:right;font-family:var(--mono);color:var(--ink);width:26%;white-space:nowrap}
 .note{border-left:2px solid var(--acc);padding:7px 11px;background:#141c19;font-size:13px;line-height:1.6;
  color:#c3ced6;margin:9px 0}
 /* overlay */
@@ -863,13 +873,13 @@ table.runs td.n{text-align:right;color:var(--dim)}
 #ov.on{display:flex}
 #bx{background:var(--pnl);border:1px solid var(--rule);border-radius:4px;max-width:760px;max-height:78vh;overflow:auto;padding:15px 18px}
 #bx h3{margin:0 0 2px;font-size:15px}#bx .sub{color:var(--dim);font-size:13px;margin-bottom:9px}
-#bx .sy{font:11px ui-monospace,Menlo,monospace;columns:4;column-gap:17px;line-height:1.75;color:#c3ced6}
+#bx .sy{font:11px var(--mono);columns:4;column-gap:17px;line-height:1.75;color:#c3ced6}
 #bx button{margin-top:11px;border:1px solid var(--rule);background:var(--pnl2);color:var(--ink);
  padding:4px 12px;cursor:pointer;font:inherit;font-size:13px;border-radius:3px}
 .lg{display:flex;gap:10px;align-items:center;margin-top:8px;color:var(--dim);font-size:12.5px;flex-wrap:wrap}
 canvas.gr{width:150px;height:10px;border-radius:2px}
 .tip{position:absolute;pointer-events:none;background:#0b0f12;border:1px solid var(--rule);border-radius:3px;
- padding:5px 8px;font:10.5px ui-monospace,Menlo,monospace;color:var(--ink);opacity:0;transition:opacity .08s;
+ padding:5px 8px;font:10.5px var(--mono);color:var(--ink);opacity:0;transition:opacity .08s;
  white-space:nowrap;z-index:5;box-shadow:0 4px 12px rgba(0,0,0,.5)}
 .tip .tk{color:var(--dim)}.tip .tv{color:var(--ink);font-weight:600}
 .chartbox{cursor:crosshair}
@@ -880,7 +890,7 @@ canvas.gr{width:150px;height:10px;border-radius:2px}
 .xchip.dn{background:#3a1c17;color:#e0916f;border:1px solid #6b3226}
 .xmk{margin-left:5px;font-size:10.5px;vertical-align:1px}
 .xmk.up{color:#5cc287}.xmk.dn{color:#e07a63}
-.rtx{position:relative;height:14px;margin-top:2px;font:9px ui-monospace,Menlo,monospace;color:var(--dim)}
+.rtx{position:relative;height:14px;margin-top:2px;font:9px var(--mono);color:var(--dim)}
 .rtx span{position:absolute;top:0;white-space:nowrap}
 .jl{color:var(--acc);cursor:pointer;font-size:12.5px;text-decoration:underline;text-underline-offset:2px}
 .jl:hover{color:#6fd39a}
@@ -1012,6 +1022,60 @@ table.bt .pos{display:inline-block;padding:1px 8px;border-radius:9px;font-size:1
 .brief summary:hover,.brief summary:focus-visible{color:var(--ink)}
 .bflip{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:4px 18px}
 .bflip .k{font-size:12.5px;font-weight:650;margin-bottom:2px}
+/* ===== Today hybrid (status strip, decision card, tiles, signals, heatmap) ===== */
+.txstrip{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:7px;overflow:hidden;margin-bottom:13px}
+.txst{background:var(--pnl);padding:8px 12px;min-width:0}
+.txst .k{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);font-weight:600}
+.txst .v{font-family:var(--mono);font-size:19px;margin-top:3px;line-height:1.1}
+.txst .s{font-size:11px;color:var(--dim);margin-top:1px}
+.txst .v.up,.txup{color:#78cf9c}.txst .v.dn,.txdn{color:#e8897a}
+.txpill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:12.5px;font-weight:700}
+@media(max-width:760px){.txstrip{grid-template-columns:repeat(2,1fr)}}
+.txdecide{background:linear-gradient(180deg,#16241d,#14201a);border:1px solid var(--acc);border-left:4px solid var(--acc);border-radius:8px;padding:14px 16px;margin-bottom:14px}
+.txdecide .eye{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--acc);font-weight:700;margin-bottom:4px}
+.txdecide h2{font-size:16.5px;margin:0 0 9px;line-height:1.35;font-weight:600;text-wrap:balance}
+.txdl{display:grid;gap:7px;margin:0;padding:0;list-style:none}
+.txdl li{display:grid;grid-template-columns:20px 1fr;gap:9px;font-size:13.5px;line-height:1.5}
+.txdl .ic{font-family:var(--mono);color:var(--acc);font-weight:600}
+.txdl b{color:#fff}
+.txact{margin-top:11px;padding:9px 12px;background:#101a14;border:1px solid #2c4636;border-radius:6px;font-size:13px;line-height:1.5}
+.txact .k{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--acc);font-weight:700;margin-right:7px}
+.txsh{display:flex;justify-content:space-between;align-items:baseline;margin:16px 0 7px}
+.txsh h3{font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--dim);font-weight:600;margin:0}
+.txsh a{font-size:12px}
+.txtiles{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+.txtile{background:var(--pnl);border:1px solid var(--rule);border-radius:7px;padding:9px 11px}
+.txtile .u{font-size:11.5px;color:var(--dim);font-weight:600;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.txtile .big{font-family:var(--mono);font-size:24px;font-weight:600;line-height:1}
+.txtile .row{display:flex;justify-content:space-between;align-items:baseline;margin-top:5px;font-size:11.5px}
+.txtile .d5{font-family:var(--mono)}
+.txtile .ps{font-size:9.5px;padding:1px 6px;border-radius:10px;font-weight:600}
+.txbar{height:4px;border-radius:2px;background:#0c1115;margin-top:7px;overflow:hidden}
+.txbar i{display:block;height:100%}
+@media(max-width:900px){.txtiles{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:480px){.txtiles{grid-template-columns:repeat(2,1fr)}}
+.txsig{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.txsc{background:var(--pnl);border:1px solid var(--rule);border-radius:7px;padding:9px 11px}
+.txsc .nm{font-size:13px;font-weight:600;margin-bottom:2px}
+.txsc .now{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.txsc .now.off{color:var(--dim)}.txsc .now.on{color:var(--warn)}
+.txsc .br{font-family:var(--mono);font-size:12px;color:var(--dim);margin-top:7px;border-top:1px solid var(--rule);padding-top:6px}
+.txsc .br b{color:var(--good)}
+.txsc.fire{border-color:var(--warn)}
+.txsignote{font-size:12.5px;color:var(--dim);margin-top:8px;background:var(--pnl2);border-radius:6px;padding:7px 10px}
+@media(max-width:760px){.txsig{grid-template-columns:repeat(2,1fr)}}
+.txheat{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.txhc{border-radius:6px;padding:9px 10px;border:1px solid rgba(255,255,255,.06)}
+.txhc .hn{font-size:12.5px;font-weight:600}
+.txhc .hv{font-family:var(--mono);font-size:19px;font-weight:600;margin-top:2px;line-height:1}
+.txhc .hd5{font-family:var(--mono);font-size:11px;margin-top:2px;opacity:.88}
+@media(max-width:900px){.txheat{grid-template-columns:repeat(4,1fr)}}
+@media(max-width:480px){.txheat{grid-template-columns:repeat(2,1fr)}}
+.txdetails{margin-top:16px;border-top:1px solid var(--rule);padding-top:8px}
+.txdetails>summary{cursor:pointer;color:var(--dim);font-size:12.5px;font-weight:600;padding:4px 0;list-style:none}
+.txdetails>summary:hover{color:var(--ink)}
+.txdetails>summary::before{content:"\\25b8 ";color:var(--acc)}
+.txdetails[open]>summary::before{content:"\\25be "}
 /* brief read-out tables (numbers, F&O posture, flips) */
 .ntbl{width:100%;border-collapse:collapse;font-size:13.5px}
 .ntbl td{padding:4px 10px 4px 0;border-bottom:1px solid #202931;vertical-align:top;line-height:1.5}
@@ -1076,7 +1140,7 @@ table.bt .pos{display:inline-block;padding:1px 8px;border-radius:9px;font-size:1
 const KEYS=__KEYS__,KI={};__KEYS__.forEach((k,i)=>KI[k]=i);
 const DATA=__DATA__,SER=__SERIES__,RUNS=__RUNS__,GROUPS=__GROUPS__,NARROW=new Set(__NARROW__),
  LISTS=__LISTS__,SIZES=__SIZES__,SECTS=__SECTS__,ULBL=__ULBL__,REPO="__REPO__",ACTIONS=__ACTIONS__,REGSIZE=__REGSIZE__,CROSS=__CROSS__,SEGCROSS=__SEGCROSS__,STOCKS=__STOCKS__,OPPS=__OPPS__,FNOSET=__FNOSET__,FNOGRP=__FNOGRP__,FW=__FW__,TRADER=__TRADER__,CHANGES=__CHANGES__;
-const BRIEF=__BRIEF__,NOTE=__NOTE__,OPPSHIST=__OPPSHIST__,INLINEDAYS=__INLINEDAYS__;
+const BRIEF=__BRIEF__,NOTE=__NOTE__,OPPSHIST=__OPPSHIST__,INLINEDAYS=__INLINEDAYS__,SIGNALS=__SIGNALS__;
 const LBL={up4:"up 4%+",dn4:"down 4%+",up10:"up 10%+",dn10:"down 10%+",hi52:"at a 52-week high",
  lo52:"at a 52-week low",up25:"up 25%+ in 21 sessions",dn25:"down 25%+ in 21 sessions",
  up25q:"up 25%+ in a quarter",dn25q:"down 25%+ in a quarter",up20_5d:"up 20%+ in 5 sessions",
@@ -1689,14 +1753,9 @@ function todayPane(){const A=ACTIONS;const el=document.getElementById('p-today')
  // crossovers
  const ups=(typeof CROSS!=='undefined'?CROSS:[]).filter(c=>c.dir==='up'),dns=(typeof CROSS!=='undefined'?CROSS:[]).filter(c=>c.dir==='dn');
  el.innerHTML=`
- <div class="verdict" style="border-color:${vc}">
-  <div class="vleft"><div class="vlabel" style="color:${vc}">${vw}</div>
-   <div class="vsub">${vs}</div></div>
-  <div class="vright"><div class="vreg" style="color:${RCOL[A.regime]}">${A.regime}</div>
-   <div class="vmeta">${A.primary} &middot; ${greens} green / ${reds} red checks</div></div></div>
+ <div class="txsh" style="margin-top:4px"><h3>Deeper detail</h3></div>
  ${refreshReminder()}
  ${changesStrip()}
- ${insightsPanel(A,greens,reds)}
  ${ex}
  <div class="grid2">
   <div class="card"><h3>Checklist</h3><table class="runs"><tbody>${checks}</tbody></table>
@@ -1790,7 +1849,60 @@ function referencePane(){document.getElementById('p-reference').innerHTML=`
   <dt>Weinstein, the 30-week line</dt><dd>Stage analysis turns on the 30-week MA. <b>Now live</b> as the 150-day (30-week) bar in the DMA gauge, sitting between the 50 and 200 DMA reads as the intermediate stage gauge. A rising 30-week line with price above it is Stage 2 (advance); a falling one with price below is Stage 4 (decline).</dd></dl></div>`;}
 
 function guidePane(){document.getElementById('p-guide').innerHTML=`
- <div class="note"><b>Use breadth at extremes, not in the middle.</b> The 5-day ratio hitting an extreme is the event to act on. Extremely bearish breadth reliably marks bottoms; extremely bullish breadth does not reliably mark tops. Add risk after washouts, trim risk gradually.</div>
+ <div class="note"><b>Guide.</b> Part 1 explains each tab and its fields. Part 2 defines the concepts that apply across tabs. Use breadth at extremes, not in the middle: extremely bearish breadth reliably marks bottoms, extremely bullish breadth does not reliably mark tops.</div>
+
+ <div class="txsh"><h3>Part 1 &middot; How each tab reads</h3></div>
+ <div class="gd">
+  <div class="gs"><h4>Today</h4><table><tbody>
+   <tr><td>Status strip</td><td>Five-second glance: regime, ALL % above 50 DMA with 5-day change, India VIX, Nifty, 52-week highs vs lows.</td></tr>
+   <tr><td>What matters today</td><td>The decision card: a headline, the judgement points (Claude note), and a single Do line. Read this first.</td></tr>
+   <tr><td>Regime at a glance</td><td>Six core universes, % above 50 DMA (big), 5-day change, posture, and a band bar coloured by zone.</td></tr>
+   <tr><td>Signals</td><td>The five base-rate signals, whether each is firing, and its historical track record. Defined in Part 2.</td></tr>
+   <tr><td>Sector rotation</td><td>All 12 sectors shaded by % above 50 DMA, strongest to weakest. The washed-out cluster reads at a glance.</td></tr>
+   <tr><td>F&amp;O posture</td><td>Nifty / Bank Nifty lean, volatility, and the ranked long / short / fade names with TradingView copy.</td></tr>
+  </tbody></table></div>
+  <div class="gs"><h4>Opportunities</h4><table><tbody>
+   <tr><td>Longs / Shorts / Fades</td><td>Ranked single-stock F&amp;O ideas. Fades are mean-reversion after an expansion, counter-trend, capped lower.</td></tr>
+   <tr><td>Conviction tag</td><td>High / Med / Low is a ranking of setup quality (move &times; volume &times; trend), NOT a win-rate.</td></tr>
+   <tr><td>NEW / CONT</td><td>First appearance versus carried over from a prior session. Session selector reads back earlier days.</td></tr>
+  </tbody></table></div>
+  <div class="gs"><h4>Trader</h4><table><tbody>
+   <tr><td>India VIX</td><td>Level, IV rank and IV percentile (where today sits in the last year), VRP, expected 1-week move.</td></tr>
+   <tr><td>Index state</td><td>Squeeze = coiled (tight range, expansion often follows); Expansion = already moving; Normal = average range.</td></tr>
+   <tr><td>Squeeze scan</td><td>Most coiled F&amp;O stocks by ATR percentile; squeeze fires = a coil just broke. &plusmn;8% events list news movers.</td></tr>
+  </tbody></table></div>
+  <div class="gs"><h4>Charts &amp; Screen</h4><table><tbody>
+   <tr><td>Charts</td><td>Breadth trend over time for any universe: the % above 10/20/40/50/150/200 DMA family, daily / weekly / monthly.</td></tr>
+   <tr><td>Screen</td><td>Stage-2 trend-template leaders ranked by relative strength (Rank or Mansfield, vs universe / sector / Nifty), with a playbook-overlap column and TradingView copy.</td></tr>
+   <tr><td>Stage</td><td>Weinstein: 2 advancing (buy), 1 basing, 3 topping, 4 declining (avoid or short).</td></tr>
+  </tbody></table></div>
+ </div>
+
+ <div class="txsh"><h3>Part 2 &middot; Concepts and definitions (apply across tabs)</h3></div>
+
+ <div class="gs" style="grid-column:1/-1"><h4>The signals table, column by column</h4>
+  <table><tbody>
+   <tr><td style="width:120px">Now</td><td>Whether the signal is firing today. "not firing" = dash.</td></tr>
+   <tr><td>n</td><td>How many times it has fired since 2019, de-clustered, so a multi-day washout counts once, not five times.</td></tr>
+   <tr><td>+X%</td><td>Median Nifty return 60 sessions after the signal fired.</td></tr>
+   <tr><td>hit%</td><td>Share of those events where Nifty was higher 60 days later.</td></tr>
+  </tbody></table>
+  <table style="margin-top:9px"><thead><tr><th style="width:150px">Signal</th><th style="width:40%">Condition</th><th>Read (2019+ base rate)</th></tr></thead><tbody>
+   <tr><td>Washout &lt;12%</td><td>% above 50 DMA falls below 12 (capitulation)</td><td>n20, +10%, 90%. Rare, high-payoff bottoming signal.</td></tr>
+   <tr><td>Washout+Thrust</td><td>A washout, then a thrust day</td><td>n4, +13%, 100%. Best signal, tiny sample.</td></tr>
+   <tr><td>Thrust</td><td>Up-4% movers &ge;10% of universe AND &ge;3&times; down-4%</td><td>n58, +6%, 78%. The durable-low signature.</td></tr>
+   <tr><td>Bear divergence</td><td>Nifty at a 20-day high, breadth not confirming</td><td>n90, +3%, 66%. Weak warning, raise stops.</td></tr>
+   <tr><td>Bull divergence</td><td>Nifty at a 20-day low, breadth not confirming</td><td>n45, +3%, 62%. Weak bottoming hint.</td></tr>
+  </tbody></table>
+  <div class="cap">Base rates are the only real probabilities on the dashboard, and they count only when a signal fires. Small samples: weight them, do not worship them.</div></div>
+
+ <div class="gs" style="grid-column:1/-1"><h4>The NIFTY F&amp;O action line, how it is built</h4>
+  <table><tbody>
+   <tr><td style="width:180px">"sell rallies, bear structures"</td><td>The directional lean, from Nifty's trend. Trend down = lean short, favour bearish structures (bear put or bear call spread). Trend up = the opposite; range = favour premium-selling.</td></tr>
+   <tr><td>"flip long only on a washout &lt;12"</td><td>The contrarian trigger, from breadth. Weak breadth alone is not a buy; only a capitulation washout under 12 flips the lean to long, where the base rate is +10% median at 60 days, 90% hit.</td></tr>
+   <tr><td>"coiled" / "vol elevated"</td><td>Added when index volatility is unusually tight (watch for a range expansion, long straddle or strangle) or already wide (defined-risk only).</td></tr>
+  </tbody></table></div>
+
  <div class="gd">
  <div class="gs" style="grid-column:1/-1"><h4>Key terms, with a worked example each</h4><table><tbody>
   <tr><td>T2108</td><td>Percent of stocks above their 40-day moving average. The oldest breadth gauge, from Worden. <b>Example:</b> T2108 = 47 means 47% of the universe is above its 40 DMA, a middling tape. Below 20 is oversold, above 80 is overbought. It leads the 50 DMA reading slightly because 40 &lt; 50.</td></tr>
@@ -1887,6 +1999,11 @@ function numbersTable(arr){if(!arr||!arr.length)return'<div class="bempty">nothi
 function flipTable(fl){const row=(arr)=>(arr&&arr.length)?arr.map(x=>`<li>${esc(x)}</li>`).join(''):'<li style="color:var(--dim)">none</li>';
  return `<table class="ftbl"><thead><tr><th class="bull">Flips bullish if</th><th class="bear">Flips bearish if</th></tr></thead>
   <tbody><tr><td><ul>${row(fl.bull)}</ul></td><td><ul>${row(fl.bear)}</ul></td></tr></tbody></table>`;}
+/* %>50 DMA band -> bar colour + heatmap tint */
+function txBand(v){if(v==null)return{bar:'#3a444d',heat:'#1a2129'};
+ const bar=v>=60?'var(--good)':v>=45?'#6a9a5f':v>=25?'var(--warn)':'var(--bad)';
+ const heat=v>=45?'#1f3d2b':v>=28?'#24402f':v>=20?'#2e3826':v>=12?'#3a3320':v>=7?'#3a281c':v>=3?'#3c231a':'#3f1f18';
+ return{bar,heat};}
 function briefHTML(){const B=BRIEF;if(!B||!B.asof)return'';
  const dt=new Date(B.asof+'T00:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
  let note='';
@@ -1902,27 +2019,79 @@ function briefHTML(){const B=BRIEF;if(!B||!B.asof)return'';
  const nameRow=(label,arr,n)=>{const syms=(arr||[]).map(x=>x.s);
   return `<tr><td class="nk">${label}</td><td class="nv2" colspan="2">${chips(arr)}${more(n,(arr||[]).length)} ${syms.length?tvChip(syms,label):''}</td></tr>`;}
  const fl=B.flips||{};
+ const A=(typeof ACTIONS!=='undefined')?ACTIONS:{};
+ const T=(typeof TRADER!=='undefined')?TRADER:{};
+ const vx=(T.index&&T.index.vix)||{};
+ const reg=A.regime||(B.core&&B.core[0]&&B.core[0].posture)||'--';
+ const all=(B.core||[])[0]||{};
+ const nif=(F.index||[]).find(x=>/nifty 50/i.test(x.label||''))||{};
+ const allrow=(typeof DATA!=='undefined'&&DATA.ALL&&DATA.ALL.rows)?DATA.ALL.rows[0]:null;
+ const hi52=allrow?gv(allrow,'new_52w_high'):null,lo52=allrow?gv(allrow,'new_52w_low'):null;
+ const regCol=(typeof RCOL!=='undefined'&&RCOL[reg])||'#3a444d';
+ // ---- status strip ----
+ const d5=all.d5,d5c=d5>0?'up':d5<0?'dn':'';
+ const strip=`<div class="txstrip">
+  <div class="txst"><div class="k">Regime</div><div class="v"><span class="txpill" style="background:${regCol};color:#0c1410">${esc(reg)}</span></div><div class="s">${esc((A.size||'').split(',')[0]||'')}</div></div>
+  <div class="txst"><div class="k">ALL &gt;50 DMA</div><div class="v">${all.a50!=null?all.a50.toFixed(1)+'%':'--'}</div><div class="s ${d5c}">${d5!=null?(d5>0?'+':'')+d5.toFixed(1)+' in 5d':''}</div></div>
+  <div class="txst"><div class="k">India VIX</div><div class="v">${vx.level??'--'}</div><div class="s">${vx.ivrank!=null?'IV rank '+vx.ivrank:''}</div></div>
+  <div class="txst"><div class="k">Nifty 50</div><div class="v ${nif.ret1>0?'up':nif.ret1<0?'dn':''}">${nif.ret1!=null?(nif.ret1>0?'+':'')+nif.ret1+'%':'--'}</div><div class="s">${esc(nif.trend?('trend '+nif.trend):'')}</div></div>
+  <div class="txst"><div class="k">52wk Hi / Lo</div><div class="v">${hi52!=null?hi52:'--'} / ${lo52!=null?lo52:'--'}</div><div class="s ${hi52!=null&&lo52!=null?(lo52>hi52?'dn':'up'):''}">${hi52!=null&&lo52!=null?(lo52>hi52?'lows lead':'highs lead'):''}</div></div>
+ </div>`;
+ // ---- decision card ----
+ const head=`${esc(reg)}. ${esc(B.headline?B.headline.charAt(0).toUpperCase()+B.headline.slice(1):'')}.`;
+ const pts=(NOTE&&NOTE.points&&NOTE.points.length)?NOTE.points:(B.numbers||[]).slice(0,3);
+ const stale=NOTE&&NOTE.points&&NOTE.points.length&&NOTE.asof!==B.asof;
+ const decide=`<div class="txdecide">
+  <div class="eye">What matters today${(NOTE&&NOTE.points&&NOTE.points.length)?` &middot; Claude note ${esc(NOTE.asof||'')}${stale?' (older than data)':''}`:''}</div>
+  <h2>${head}</h2>
+  <ul class="txdl">${pts.map((p,i)=>`<li><span class="ic">${i+1}</span><span>${esc(p)}</span></li>`).join('')}</ul>
+  ${B.bottom?`<div class="txact"><span class="k">Do</span>${esc(B.bottom)}</div>`:''}
+ </div>`;
+ // ---- regime tiles ----
+ const tiles=`<div class="txsh"><h3>Regime at a glance &middot; % above 50 DMA</h3><a class="jl" onclick="jump('table')">Table &rarr;</a></div>
+  <div class="txtiles">${(B.core||[]).map(r=>{const bd=txBand(r.a50);const dc=r.d5>0?'up':r.d5<0?'dn':'';
+   return `<div class="txtile"><div class="u">${esc(r.label)}</div><div class="big">${r.a50!=null?r.a50.toFixed(1):'--'}</div>
+    <div class="row"><span class="d5 ${dc}">${r.d5!=null?(r.d5>0?'+':'')+r.d5.toFixed(1):''}</span><span class="ps" style="background:${(typeof RCOL!=='undefined'&&RCOL[r.posture])||'#3a444d'};color:#0c1410">${esc(r.posture)}</span></div>
+    <div class="txbar"><i style="width:${Math.max(2,Math.min(100,r.a50||0))}%;background:${bd.bar}"></i></div></div>`}).join('')}</div>`;
+ // ---- signals ----
+ const sg=(typeof SIGNALS!=='undefined'&&SIGNALS)||[];
+ const firing=sg.filter(s=>s.firing).map(s=>s.name);
+ const sigcards=sg.map(s=>`<div class="txsc${s.firing?' fire':''}"><div class="nm">${esc(s.name)}</div>
+   <div class="now ${s.firing?'on':'off'}">${s.firing?'firing':'not firing'}</div>
+   <div class="br">${s.n?`n${s.n} &middot; <b>${s.med>0?'+':''}${s.med}%</b> &middot; ${s.hit}%`:'n/a'}</div></div>`).join('');
+ const signals=`<div class="txsh"><h3>Signals &middot; base rate = events / +60d median Nifty / hit</h3><a class="jl" onclick="jump('guide')">How these work &rarr; Guide</a></div>
+  <div class="txsig">${sigcards}</div>
+  <div class="txsignote">Firing now: ${firing.length?esc(firing.join(', ')):'none'}. Base rates count only when a signal actually fires; a sector or Next-50 washout flagged on the panel is context, not one of these five triggers.</div>`;
+ // ---- sector heatmap ----
+ const heat=`<div class="txsh"><h3>Sector rotation &middot; % above 50 DMA, strongest to weakest</h3><a class="jl" onclick="jump('sectors')">Sectors &rarr;</a></div>
+  <div class="txheat">${(B.sectors||[]).map(r=>{const bd=txBand(r.a50);const dc=r.d5>0?'up':r.d5<0?'dn':'';
+   return `<div class="txhc" style="background:${bd.heat}"><div class="hn">${esc(r.label)}</div><div class="hv">${r.a50!=null?Math.round(r.a50):'--'}</div><div class="hd5 ${dc}">${r.d5!=null?(r.d5>0?'+':'')+Math.round(r.d5)+' 5d':''}</div></div>`}).join('')}</div>`;
+ // ---- F&O ----
+ const fno=`<div class="txsh"><h3>F&amp;O posture &middot; mechanical</h3><a class="jl" onclick="jump('opps')">Opportunities &rarr;</a></div>
+  <table class="ntbl fno"><tbody>
+   ${idxRows}${volRow}
+   ${nameRow('Longs',F.longs,F.n_longs)}
+   ${nameRow('Shorts',F.shorts,F.n_shorts)}
+   ${nameRow('Fades',F.fades,F.n_fades)}
+   ${F.squeeze&&F.squeeze.length?`<tr><td class="nk">Squeeze fired</td><td class="nv2" colspan="2">${F.squeeze.map(esc).join('; ')} <span style="color:var(--dim)">(coil just broke, a move may be starting)</span></td></tr>`:''}
+  </tbody></table>
+  <div class="bnw">Conviction is a ranking of setup quality, not a win-rate. The NIFTY F&amp;O line is the mechanical lean; see <a class="jl" onclick="jump('guide')">Guide</a> for how it is derived.</div>`;
+ // ---- details ----
+ const details=`<details class="txdetails"><summary>Details: all universes, what the numbers say, and what flips the read</summary>
+   <h4>All cap segments</h4>${briefTable(B.more||[])}
+   <h4>All sectors</h4>${briefTable(B.sectors||[])}
+   <h4>What the numbers say</h4>${numbersTable(B.numbers||[])}
+   <h4>What flips the read</h4>${flipTable(fl)}
+  </details>`;
  return `<div class="brief">
- <h2>Daily brief: ${esc(B.headline)}</h2>
- <div class="bsub">Data through ${dt}. Mechanical read from the pipeline${NOTE&&NOTE.points&&NOTE.points.length?'; Claude note on top':''}. Research, not advice.</div>
- ${note}
- ${briefTable(B.core||[])}
- <details><summary>All universes: 4 more cap segments and 12 sectors</summary>
-  <h4>Cap segments</h4>${briefTable(B.more||[])}
-  <h4>Sectors, strongest to weakest</h4>${briefTable(B.sectors||[])}
- </details>
- <h4>What the numbers say</h4>${numbersTable(B.numbers||[])}
- <h4>F&amp;O posture (mechanical)</h4>
- <table class="ntbl fno"><tbody>
-  ${idxRows}${volRow}
-  ${nameRow('Longs',F.longs,F.n_longs)}
-  ${nameRow('Shorts',F.shorts,F.n_shorts)}
-  ${nameRow('Fades',F.fades,F.n_fades)}
-  ${F.squeeze&&F.squeeze.length?`<tr><td class="nk">Squeeze fired</td><td class="nv2" colspan="2">${F.squeeze.map(esc).join('; ')} <span style="color:var(--dim)">(coil just broke, a move may be starting)</span></td></tr>`:''}
- </tbody></table>
- <div class="bnw">Conviction is a ranking of setup quality, not a win-rate.</div>
- <h4>What flips the read</h4>${flipTable(fl)}
- <div class="bline"><b>Bottom line</b> ${esc(B.bottom)}</div>
+ <div class="bsub">Data through ${dt}. Mechanical read from the pipeline${(NOTE&&NOTE.points&&NOTE.points.length)?', Claude note in the card':''}. Research, not advice.</div>
+ ${strip}
+ ${decide}
+ ${tiles}
+ ${signals}
+ ${heat}
+ ${fno}
+ ${details}
 </div>`}
 
 /* ---- draw ---- */
@@ -1937,6 +2106,7 @@ function injectRead(paneId){
 }
 function draw(){const d=DATA[U];
  regimeBadge();
+ const sp=document.querySelector('.sigpanel');if(sp)sp.style.display=(TAB==='today')?'none':'';
  if(TAB==='today'){todayPane();const _b=briefHTML();if(_b)document.getElementById('p-today').insertAdjacentHTML('afterbegin',_b);return;}
  if(TAB==='screen'){screenPane();injectRead('p-screen');return;}
  if(TAB==='opps'){oppsPane();injectRead('p-opps');return;}
