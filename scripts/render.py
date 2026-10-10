@@ -1076,6 +1076,17 @@ table.bt .pos{display:inline-block;padding:1px 8px;border-radius:9px;font-size:1
 .txdetails>summary:hover{color:var(--ink)}
 .txdetails>summary::before{content:"\\25b8 ";color:var(--acc)}
 .txdetails[open]>summary::before{content:"\\25be "}
+.txflips{margin-top:9px;display:flex;flex-wrap:wrap;gap:7px 14px;align-items:baseline;font-size:12.5px;border-top:1px dashed #2c4636;padding-top:8px}
+.txflips .k{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);font-weight:700}
+.txflips .fup{color:#78cf9c}.txflips .fdn{color:#e8897a}
+.txstruct{font-size:12px;color:var(--dim);margin-top:3px;line-height:1.45}
+.txsize{margin-top:8px;font-size:12.5px;color:#c9d3da;background:var(--pnl2);border-left:3px solid var(--acc);border-radius:5px;padding:8px 11px;line-height:1.5}
+.txsize b{color:var(--ink)}
+.txmeters{display:grid;gap:9px;background:var(--pnl);border:1px solid var(--rule);border-radius:7px;padding:11px 13px}
+.txm-h{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;margin-bottom:4px}
+.txm-h .mut{color:var(--dim)}
+.txm-b{height:7px;border-radius:4px;background:#0c1115;overflow:hidden}
+.txm-b i{display:block;height:100%;border-radius:4px}
 /* brief read-out tables (numbers, F&O posture, flips) */
 .ntbl{width:100%;border-collapse:collapse;font-size:13.5px}
 .ntbl td{padding:4px 10px 4px 0;border-bottom:1px solid #202931;vertical-align:top;line-height:1.5}
@@ -2004,6 +2015,21 @@ function txBand(v){if(v==null)return{bar:'#3a444d',heat:'#1a2129'};
  const bar=v>=60?'var(--good)':v>=45?'#6a9a5f':v>=25?'var(--warn)':'var(--bad)';
  const heat=v>=45?'#1f3d2b':v>=28?'#24402f':v>=20?'#2e3826':v>=12?'#3a3320':v>=7?'#3a281c':v>=3?'#3c231a':'#3f1f18';
  return{bar,heat};}
+/* distance-to-trigger meters, from core %>50 DMA */
+function txMeters(B){const core=B.core||[];
+ const all=core.find(r=>/all nse/i.test(r.label))||core[0]||{};
+ const n50=core.find(r=>/nifty 50/i.test(r.label))||{};
+ const rows=[];
+ if(all.a50!=null){rows.push({l:'Breadth reclaim (turns constructive)',now:all.a50,tgt:45,dir:'up'});
+  rows.push({l:'Washout (high-odds bounce setup)',now:all.a50,tgt:12,dir:'down'});}
+ if(n50.a50!=null)rows.push({l:'Nifty 50 breadth reclaim',now:n50.a50,tgt:30,dir:'up'});
+ if(!rows.length)return'';
+ return `<div class="txsh"><h3>Distance to triggers &middot; % above 50 DMA</h3><a class="jl" onclick="jump('guide')">?</a></div>
+  <div class="txmeters">${rows.map(r=>{let fill,gaptxt;
+   if(r.dir==='up'){fill=Math.max(2,Math.min(100,r.now/r.tgt*100));const g=r.tgt-r.now;gaptxt=g<=0?'reached':'+'+g.toFixed(1)+' to go';}
+   else{fill=r.now<=r.tgt?100:Math.max(2,Math.min(100,(25-r.now)/(25-r.tgt)*100));const g=r.now-r.tgt;gaptxt=g<=0?'reached':g.toFixed(1)+' to go (downside)';}
+   const col=fill>=85?'var(--warn)':'var(--acc)';
+   return `<div class="txm"><div class="txm-h"><span>${r.l}</span><span class="num">${r.now.toFixed(1)} &rarr; ${r.tgt} <span class="mut">${gaptxt}</span></span></div><div class="txm-b"><i style="width:${fill}%;background:${col}"></i></div></div>`}).join('')}</div>`;}
 function briefHTML(){const B=BRIEF;if(!B||!B.asof)return'';
  const dt=new Date(B.asof+'T00:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
  let note='';
@@ -2012,8 +2038,7 @@ function briefHTML(){const B=BRIEF;if(!B||!B.asof)return'';
  const F=B.fno||{},V=F.vol||{};
  const chips=a=>(a&&a.length)?a.map(x=>`<span class="chip">${esc(x.s)}<i>${esc(x.conv||'')}${x.state?' '+esc(x.state):''}</i></span>`).join(''):'<span style="color:var(--dim)">none</span>';
  const more=(n,k)=>n>k?` <span style="color:var(--dim);font-size:12px">+${n-k} more on Opportunities</span>`:'';
- // F&O posture as a table: index rows + a volatility row
- const idxRows=(F.index||[]).map(x=>`<tr><td class="nk">${esc(x.label)}</td><td class="nv ${x.ret1>0?'up':x.ret1<0?'dn':''}">${x.ret1>0?'+':''}${x.ret1}%</td><td class="nv2">${esc(x.posture)}</td></tr>`).join('');
+ // F&O posture: a volatility row (index rows are built after regime is known)
  const volRow=V.vix!=null?`<tr><td class="nk">Volatility</td><td class="nv">VIX ${V.vix}</td><td class="nv2">IV rank ${V.ivrank}, VRP pctile ${V.vrp_pctile}; expected 1-week move &plusmn;${V.exp_1w_pct}% (${V.exp_1w_pts} pts). ${esc(V.hint)}</td></tr>`:'';
  // name row with a TradingView copy chip
  const nameRow=(label,arr,n)=>{const syms=(arr||[]).map(x=>x.s);
@@ -2028,13 +2053,21 @@ function briefHTML(){const B=BRIEF;if(!B||!B.asof)return'';
  const allrow=(typeof DATA!=='undefined'&&DATA.ALL&&DATA.ALL.rows)?DATA.ALL.rows[0]:null;
  const hi52=allrow?gv(allrow,'new_52w_high'):null,lo52=allrow?gv(allrow,'new_52w_low'):null;
  const regCol=(typeof RCOL!=='undefined'&&RCOL[reg])||'#3a444d';
+ const noNew=(reg==='Stand aside'||reg==='Defensive');
+ const spot=allrow?gv(allrow,'nifty_close'):null,emp=V.exp_1w_pts;
+ const nrange=(spot!=null&&emp)?`${Math.round(spot-emp).toLocaleString('en-IN')}–${Math.round(spot+emp).toLocaleString('en-IN')}`:'';
+ // F&O index rows with a concrete defined-risk structure per trend
+ const structFor=t=>t==='down'?'bear call spread (sell above the 1-week upper band) or bear put spread'
+   :t==='up'?'bull call spread'
+   :'iron condor or short strangle inside the 1-week range';
+ const idxRows=(F.index||[]).map(x=>`<tr><td class="nk">${esc(x.label)}</td><td class="nv ${x.ret1>0?'up':x.ret1<0?'dn':''}">${x.ret1>0?'+':''}${x.ret1}%</td><td class="nv2">${esc(x.posture)}<div class="txstruct">${noNew?`<b style="color:#e8a393">No new index risk (${esc(reg)}).</b> If you must express it: `:'Structure: '}${structFor(x.trend)} (defined risk).</div></td></tr>`).join('');
  // ---- status strip ----
  const d5=all.d5,d5c=d5>0?'up':d5<0?'dn':'';
  const strip=`<div class="txstrip">
   <div class="txst"><div class="k">Regime</div><div class="v"><span class="txpill" style="background:${regCol};color:#0c1410">${esc(reg)}</span></div><div class="s">${esc((A.size||'').split(',')[0]||'')}</div></div>
   <div class="txst"><div class="k">ALL &gt;50 DMA</div><div class="v">${all.a50!=null?all.a50.toFixed(1)+'%':'--'}</div><div class="s ${d5c}">${d5!=null?(d5>0?'+':'')+d5.toFixed(1)+' in 5d':''}</div></div>
   <div class="txst"><div class="k">India VIX</div><div class="v">${vx.level??'--'}</div><div class="s">${vx.ivrank!=null?'IV rank '+vx.ivrank:''}</div></div>
-  <div class="txst"><div class="k">Nifty 50</div><div class="v ${nif.ret1>0?'up':nif.ret1<0?'dn':''}">${nif.ret1!=null?(nif.ret1>0?'+':'')+nif.ret1+'%':'--'}</div><div class="s">${esc(nif.trend?('trend '+nif.trend):'')}</div></div>
+  <div class="txst"><div class="k">Nifty 50</div><div class="v ${nif.ret1>0?'up':nif.ret1<0?'dn':''}">${nif.ret1!=null?(nif.ret1>0?'+':'')+nif.ret1+'%':'--'}</div><div class="s">${esc(nif.trend?('trend '+nif.trend):'')}${nrange?` &middot; 1wk ${nrange}`:''}</div></div>
   <div class="txst"><div class="k">52wk Hi / Lo</div><div class="v">${hi52!=null?hi52:'--'} / ${lo52!=null?lo52:'--'}</div><div class="s ${hi52!=null&&lo52!=null?(lo52>hi52?'dn':'up'):''}">${hi52!=null&&lo52!=null?(lo52>hi52?'lows lead':'highs lead'):''}</div></div>
  </div>`;
  // ---- decision card ----
@@ -2046,6 +2079,7 @@ function briefHTML(){const B=BRIEF;if(!B||!B.asof)return'';
   <h2>${head}</h2>
   <ul class="txdl">${pts.map((p,i)=>`<li><span class="ic">${i+1}</span><span>${esc(p)}</span></li>`).join('')}</ul>
   ${B.bottom?`<div class="txact"><span class="k">Do</span>${esc(B.bottom)}</div>`:''}
+  ${((fl.bull&&fl.bull.length)||(fl.bear&&fl.bear.length))?`<div class="txflips"><span class="k">Flips if</span>${(fl.bull&&fl.bull[0])?`<span class="fup">&#9650; ${esc(fl.bull[0])}</span>`:''}${(fl.bear&&fl.bear[0])?`<span class="fdn">&#9660; ${esc(fl.bear[0])}</span>`:''}</div>`:''}
  </div>`;
  // ---- regime tiles ----
  const tiles=`<div class="txsh"><h3>Regime at a glance &middot; % above 50 DMA</h3><a class="jl" onclick="jump('table')">Table &rarr;</a></div>
@@ -2075,7 +2109,11 @@ function briefHTML(){const B=BRIEF;if(!B||!B.asof)return'';
    ${nameRow('Fades',F.fades,F.n_fades)}
    ${F.squeeze&&F.squeeze.length?`<tr><td class="nk">Squeeze fired</td><td class="nv2" colspan="2">${F.squeeze.map(esc).join('; ')} <span style="color:var(--dim)">(coil just broke, a move may be starting)</span></td></tr>`:''}
   </tbody></table>
-  <div class="bnw">Conviction is a ranking of setup quality, not a win-rate. The NIFTY F&amp;O line is the mechanical lean; see <a class="jl" onclick="jump('guide')">Guide</a> for how it is derived.</div>`;
+  <div class="bnw">Conviction is a ranking of setup quality, not a win-rate. The NIFTY F&amp;O line is the mechanical lean; see <a class="jl" onclick="jump('guide')">Guide</a> for how it is derived.</div>
+  ${(()=>{const m={Aggressive:1.0,Normal:0.7,Defensive:0.4,'Stand aside':0,'Recovery watch':0.3}[reg];
+   const mt=m==null?'--':'×'+m;
+   const tail=m===0?'So no new directional risk today: stand aside or manage existing only.':m==null?'':`Today's starter size = conviction R &times; ${m}.`;
+   return `<div class="txsize"><b>Starter size</b> = conviction &times; regime. High / Med / Low = 1.0 / 0.6 / 0.3 R, where R is your fixed rupee risk per trade. Regime multiplier now (<b>${esc(reg)}</b>): <b>${mt}</b>. ${tail} Set R once and never exceed it.</div>`;})()}`;
  // ---- details ----
  const details=`<details class="txdetails"><summary>Details: all universes, what the numbers say, and what flips the read</summary>
    <h4>All cap segments</h4>${briefTable(B.more||[])}
@@ -2086,9 +2124,11 @@ function briefHTML(){const B=BRIEF;if(!B||!B.asof)return'';
  return `<div class="brief">
  <div class="bsub">Data through ${dt}. Mechanical read from the pipeline${(NOTE&&NOTE.points&&NOTE.points.length)?', Claude note in the card':''}. Research, not advice.</div>
  ${strip}
+ ${(typeof changesStrip==='function')?changesStrip():''}
  ${decide}
  ${tiles}
  ${signals}
+ ${txMeters(B)}
  ${heat}
  ${fno}
  ${details}
