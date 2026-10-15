@@ -20,11 +20,12 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: 170          # was 55; ingest on a slow-NSE day was hitting the wall
     steps:
       - uses: actions/checkout@v4
 
@@ -33,6 +34,11 @@ jobs:
           python-version: "3.11"
 
       - run: pip install -r requirements.txt
+
+      - name: Configure git
+        run: |
+          git config user.name  "breadth-bot"
+          git config user.email "breadth-bot@users.noreply.github.com"
 
       - name: Ingest
         run: |
@@ -43,6 +49,12 @@ jobs:
           else
             python scripts/ingest.py
           fi
+
+      - name: Commit data store (early, so a later failure cannot lose the day)
+        run: |
+          git add data/breadth_history.csv data/validation.txt data/constituents.json data/state_snapshot.json
+          git add -f data/*.parquet || true
+          git diff --staged --quiet || (git commit -m "breadth data $(date -u +%Y-%m-%d)" && git push)
 
       - name: Frameworks
         run: python scripts/frameworks.py --src frameworks || echo "frameworks skipped"
@@ -70,16 +82,17 @@ jobs:
           cat data/validation.txt
           grep -q "no issues found" data/validation.txt || echo "::warning::validation findings, see log"
 
-      - name: Commit
+      - name: Commit derived files + dashboard
         run: |
-          git config user.name  "breadth-bot"
-          git config user.email "breadth-bot@users.noreply.github.com"
           git add data/breadth_history.csv data/validation.txt data/lists data/stocks.json data/frameworks.json data/trader.json data/changes.json data/opportunities.json data/opportunities data/summary.json data/summary data/state_snapshot.json data/constituents.json dashboard.html
           git add -f data/*.parquet || true
-          git diff --staged --quiet || git commit -m "breadth $(date -u +%Y-%m-%d)"
-          git push
+          git diff --staged --quiet || (git commit -m "breadth $(date -u +%Y-%m-%d)" && git push)
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dashboard
-          path: dashboard.html
+      - name: Alert on failure
+        if: ${{ failure() || cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create --repo "${{ github.repository }}" \
+            --title "breadth-daily FAILED $(date -u +%Y-%m-%d)" \
+            --body "Run ${{ github.run_id }} ended as a non-success (failed or timed out) and may not have committed all data. Log: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"

@@ -1,0 +1,29 @@
+name: breadth-watchdog
+
+on:
+  schedule:
+    - cron: "30 23 * * 1-5"   # 05:00 IST next morning, after the daily job must have finished
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify today's breadth-daily succeeded
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          today=$(date -u +%Y-%m-%d)
+          runs=$(gh run list --repo "${{ github.repository }}" --workflow breadth-daily.yml --limit 20 --json conclusion,createdAt)
+          ok=$(echo "$runs" | jq --arg d "$today" '[.[] | select((.createdAt|startswith($d)) and .conclusion=="success")] | length')
+          if [ "${ok:-0}" -eq 0 ]; then
+            gh issue create --repo "${{ github.repository }}" \
+              --title "breadth-daily did NOT succeed on $today" \
+              --body "No successful breadth-daily run found for $today. Data is likely stale. Check the Actions tab."
+          else
+            echo "breadth-daily succeeded $ok time(s) today."
+          fi
