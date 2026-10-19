@@ -1,1 +1,1 @@
-{"asof":"2026-10-16","changes":[{"tag":"SQUEEZE FIRE","msg":"1 F&O names broke their coil: POWERINDIA (dn)","book":"trade"},{"tag":"EVENT","msg":"1 F&O names moved >|8%|: TECHM +8.5%","book":"trade"}],"quiet":false,"prev_asof":"2026-10-13"}
+{"asof":"2026-10-19","changes":[{"tag":"SHORT-TERM","msg":"10 DMA breadth -19 pts (51->32)","book":"both"},{"tag":"SQUEEZE FIRE","msg":"2 F&O names broke their coil: AUROPHARMA (dn), GODREJPROP (dn)","book":"trade"}],"quiet":false,"prev_asof":"2026-10-16"}
