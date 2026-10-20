@@ -284,12 +284,12 @@
    {
     "s": "UNIONBANK",
     "conv": "High",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "PNB",
     "conv": "High",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "LAURUSLABS",
@@ -316,17 +316,17 @@
    {
     "s": "CROMPTON",
     "conv": "High",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "AXISBANK",
     "conv": "High",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "ULTRACEMCO",
     "conv": "High",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "INOXWIND",
@@ -341,34 +341,34 @@
    {
     "s": "HDFCBANK",
     "conv": "Med",
-    "state": "NEW"
+    "state": "CONT"
    }
   ],
   "fades": [
    {
     "s": "TCS",
     "conv": "High",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "TECHM",
     "conv": "Med",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "TATAELXSI",
     "conv": "Med",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "HCLTECH",
     "conv": "Med",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "WIPRO",
     "conv": "Med",
-    "state": "NEW"
+    "state": "CONT"
    }
   ],
   "n_longs": 10,
