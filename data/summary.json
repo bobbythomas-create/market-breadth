@@ -1,27 +1,27 @@
 {
- "asof": "2026-10-23",
- "prev_asof": "2026-10-22",
- "headline": "washout, deteriorating, not confirmed",
+ "asof": "2026-10-26",
+ "prev_asof": "2026-10-23",
+ "headline": "weak, deteriorating, not confirmed",
  "core": [
   {
    "u": "ALL",
    "label": "All NSE",
-   "n": 2706,
-   "a50": 10.9,
-   "d5": -14.0,
-   "a150": 24.1,
-   "a200": 26.6,
+   "n": 2709,
+   "a50": 12.2,
+   "d5": -14.2,
+   "a150": 24.8,
+   "a200": 27.8,
    "posture": "Stand aside",
-   "band": "washout"
+   "band": "weak"
   },
   {
    "u": "NIFTY50",
    "label": "Nifty 50",
    "n": 50,
-   "a50": 16.0,
-   "d5": -12.0,
-   "a150": 16.0,
-   "a200": 14.0,
+   "a50": 24.0,
+   "d5": -8.0,
+   "a150": 22.0,
+   "a200": 20.0,
    "posture": "Stand aside",
    "band": "weak"
   },
@@ -29,10 +29,10 @@
    "u": "MIDCAP150",
    "label": "Midcap 150",
    "n": 149,
-   "a50": 8.8,
-   "d5": -8.8,
-   "a150": 20.9,
-   "a200": 23.0,
+   "a50": 10.8,
+   "d5": -8.1,
+   "a150": 23.0,
+   "a200": 25.0,
    "posture": "Stand aside",
    "band": "washout"
   },
@@ -40,19 +40,19 @@
    "u": "SMALLCAP250",
    "label": "Smallcap 250",
    "n": 246,
-   "a50": 10.6,
-   "d5": -9.9,
-   "a150": 25.3,
-   "a200": 31.1,
+   "a50": 12.7,
+   "d5": -9.8,
+   "a150": 28.2,
+   "a200": 34.9,
    "posture": "Stand aside",
-   "band": "washout"
+   "band": "weak"
   },
   {
    "u": "SEC_BANK",
    "label": "Bank",
    "n": 14,
-   "a50": 28.6,
-   "d5": 0.0,
+   "a50": 35.7,
+   "d5": -0.0,
    "a150": 35.7,
    "a200": 28.6,
    "posture": "Defensive",
@@ -63,7 +63,7 @@
    "label": "IT",
    "n": 10,
    "a50": 80.0,
-   "d5": 0.0,
+   "d5": -10.0,
    "a150": 80.0,
    "a200": 70.0,
    "posture": "Aggressive",
@@ -74,11 +74,11 @@
   {
    "u": "LIQUID",
    "label": "Liquid",
-   "n": 1493,
-   "a50": 12.5,
-   "d5": -16.8,
-   "a150": 30.4,
-   "a200": 34.4,
+   "n": 1399,
+   "a50": 14.1,
+   "d5": -18.5,
+   "a150": 32.7,
+   "a200": 37.5,
    "posture": "Stand aside",
    "band": "weak"
   },
@@ -86,21 +86,21 @@
    "u": "FNO",
    "label": "F&O",
    "n": 213,
-   "a50": 9.9,
-   "d5": -10.3,
-   "a150": 19.8,
-   "a200": 20.3,
+   "a50": 14.2,
+   "d5": -8.8,
+   "a150": 22.2,
+   "a200": 24.5,
    "posture": "Stand aside",
-   "band": "washout"
+   "band": "weak"
   },
   {
    "u": "NIFTYNEXT50",
    "label": "Next 50",
    "n": 50,
-   "a50": 6.0,
-   "d5": -6.0,
-   "a150": 24.5,
-   "a200": 26.5,
+   "a50": 8.0,
+   "d5": -12.0,
+   "a150": 26.5,
+   "a200": 30.6,
    "posture": "Stand aside",
    "band": "washout"
   },
@@ -108,12 +108,12 @@
    "u": "NIFTY500",
    "label": "Nifty 500",
    "n": 495,
-   "a50": 10.1,
-   "d5": -9.4,
-   "a150": 22.9,
-   "a200": 26.4,
+   "a50": 12.8,
+   "d5": -9.3,
+   "a150": 25.8,
+   "a200": 29.9,
    "posture": "Stand aside",
-   "band": "washout"
+   "band": "weak"
   }
  ],
  "sectors": [
@@ -122,7 +122,7 @@
    "label": "IT",
    "n": 10,
    "a50": 80.0,
-   "d5": 0.0,
+   "d5": -10.0,
    "a150": 80.0,
    "a200": 70.0,
    "posture": "Aggressive",
@@ -133,7 +133,7 @@
    "label": "Media",
    "n": 10,
    "a50": 40.0,
-   "d5": 0.0,
+   "d5": -10.0,
    "a150": 60.0,
    "a200": 70.0,
    "posture": "Defensive",
@@ -143,8 +143,8 @@
    "u": "SEC_BANK",
    "label": "Bank",
    "n": 14,
-   "a50": 28.6,
-   "d5": 0.0,
+   "a50": 35.7,
+   "d5": -0.0,
    "a150": 35.7,
    "a200": 28.6,
    "posture": "Defensive",
@@ -154,10 +154,10 @@
    "u": "SEC_FINSRV",
    "label": "Fin Services",
    "n": 20,
-   "a50": 15.0,
-   "d5": -25.0,
+   "a50": 20.0,
+   "d5": -15.0,
    "a150": 10.0,
-   "a200": 5.0,
+   "a200": 10.0,
    "posture": "Stand aside",
    "band": "weak"
   },
@@ -165,10 +165,10 @@
    "u": "SEC_PHARMA",
    "label": "Pharma",
    "n": 20,
-   "a50": 15.0,
+   "a50": 20.0,
    "d5": -5.0,
-   "a150": 50.0,
-   "a200": 55.0,
+   "a150": 55.0,
+   "a200": 70.0,
    "posture": "Stand aside",
    "band": "weak"
   },
@@ -176,12 +176,12 @@
    "u": "SEC_INFRA",
    "label": "Infra",
    "n": 30,
-   "a50": 10.0,
-   "d5": -6.7,
-   "a150": 13.3,
-   "a200": 20.0,
+   "a50": 16.7,
+   "d5": -3.3,
+   "a150": 20.0,
+   "a200": 26.7,
    "posture": "Stand aside",
-   "band": "washout"
+   "band": "weak"
   },
   {
    "u": "SEC_ENERGY",
@@ -189,8 +189,8 @@
    "n": 40,
    "a50": 2.5,
    "d5": -12.5,
-   "a150": 10.0,
-   "a200": 12.5,
+   "a150": 12.5,
+   "a200": 17.5,
    "posture": "Stand aside",
    "band": "washout"
   },
@@ -200,7 +200,7 @@
    "n": 15,
    "a50": 0.0,
    "d5": 0.0,
-   "a150": 26.7,
+   "a150": 33.3,
    "a200": 26.7,
    "posture": "Stand aside",
    "band": "washout"
@@ -221,9 +221,9 @@
    "label": "Metal",
    "n": 15,
    "a50": 0.0,
-   "d5": 0.0,
-   "a150": 14.3,
-   "a200": 14.3,
+   "d5": -13.3,
+   "a150": 21.4,
+   "a200": 21.4,
    "posture": "Stand aside",
    "band": "washout"
   },
@@ -232,7 +232,7 @@
    "label": "Realty",
    "n": 10,
    "a50": 0.0,
-   "d5": -20.0,
+   "d5": -10.0,
    "a150": 20.0,
    "a200": 20.0,
    "posture": "Stand aside",
@@ -244,18 +244,18 @@
    "n": 20,
    "a50": 0.0,
    "d5": -15.0,
-   "a150": 10.0,
-   "a200": 10.0,
+   "a150": 15.0,
+   "a200": 15.0,
    "posture": "Stand aside",
    "band": "washout"
   }
  ],
  "numbers": [
-  "ALL %>50 DMA 24.9 to 10.9 in 5 sessions (-14.0). Band: washout.",
-  "Large vs broad aligned: Nifty 50 16.0 vs ALL 10.9 (gap -5.1 pts).",
-  "Sectors: strongest IT 80.0, weakest PSE 0.0. At washout (<12): Infra, Energy, Auto, FMCG, Metal, Realty, PSE.",
-  "Firing: washout in All NSE, washout in Midcap 150, washout in Smallcap 250, washout in F&O, washout in Next 50, washout in Nifty 500. Recent thrust: IT (16 Oct), not confirmed in ALL, so not a durable-low signature.",
-  "52-week highs vs lows (ALL): 26 vs 441, 5 sessions ago 39 vs 66."
+  "ALL %>50 DMA 26.4 to 12.2 in 5 sessions (-14.2). Band: weak.",
+  "Narrow rally: Nifty 50 24.0 vs ALL 12.2, Smallcap 250 12.7 (gap -11.8 pts). Large caps carry the index; broad market lags.",
+  "Sectors: strongest IT 80.0, weakest PSE 0.0. At washout (<12): Energy, Auto, FMCG, Metal, Realty, PSE.",
+  "Firing: washout in Midcap 150, washout in Next 50. Recent thrust: IT (16 Oct), not confirmed in ALL, so not a durable-low signature.",
+  "52-week highs vs lows (ALL): 29 vs 246, 5 sessions ago 56 vs 53. Crossed: lows now lead."
  ],
  "fno": {
   "index": [
@@ -263,77 +263,92 @@
     "label": "Nifty 50",
     "trend": "down",
     "posture": "trend down, sell rallies / bear structures",
-    "ret1": -0.39
+    "ret1": 0.68
    },
    {
     "label": "Bank Nifty",
     "trend": "down",
     "posture": "trend down, sell rallies / bear structures",
-    "ret1": -1.16
+    "ret1": 0.15
    }
   ],
   "vol": {
-   "vix": 16.86,
-   "ivrank": 41.0,
-   "vrp_pctile": 55.0,
-   "exp_1w_pct": 2.37,
-   "exp_1w_pts": 537.0,
+   "vix": 17.16,
+   "ivrank": 43.0,
+   "vrp_pctile": 57.0,
+   "exp_1w_pct": 2.42,
+   "exp_1w_pts": 550.0,
    "hint": "Options fairly priced: pick structure by view, keep risk defined."
   },
   "longs": [
    {
-    "s": "INDHOTEL",
-    "conv": "Med",
-    "state": "CONT"
+    "s": "ATHERENERG",
+    "conv": "High",
+    "state": "NEW"
+   },
+   {
+    "s": "DRREDDY",
+    "conv": "High",
+    "state": "NEW"
    },
    {
     "s": "COFORGE",
-    "conv": "Med",
+    "conv": "High",
     "state": "CONT"
    },
    {
     "s": "LAURUSLABS",
+    "conv": "High",
+    "state": "CONT"
+   },
+   {
+    "s": "ZYDUSLIFE",
+    "conv": "High",
+    "state": "NEW"
+   },
+   {
+    "s": "INDHOTEL",
     "conv": "Med",
     "state": "CONT"
    }
   ],
   "shorts": [
    {
-    "s": "SWIGGY",
-    "conv": "High",
-    "state": "CONT"
-   },
-   {
-    "s": "COLPAL",
-    "conv": "High",
-    "state": "CONT"
-   },
-   {
-    "s": "NAM-INDIA",
-    "conv": "High",
-    "state": "NEW"
-   },
-   {
-    "s": "GODREJPROP",
+    "s": "AUBANK",
     "conv": "High",
     "state": "NEW"
    },
    {
     "s": "UJJIVANSFB",
     "conv": "High",
+    "state": "CONT"
+   },
+   {
+    "s": "SHRIRAMFIN",
+    "conv": "High",
     "state": "NEW"
    },
    {
-    "s": "360ONE",
+    "s": "SUPREMEIND",
+    "conv": "High",
+    "state": "NEW"
+   },
+   {
+    "s": "BANKINDIA",
+    "conv": "High",
+    "state": "NEW"
+   },
+   {
+    "s": "TATACONSUM",
     "conv": "High",
     "state": "NEW"
    }
   ],
   "fades": [
    {
-    "s": "TCS",
+    "s": "YESBANK",
     "conv": "Med",
-    "state": "CONT"
+    "state": "NEW"
    },
    {
     "s": "WIPRO",
@@ -346,35 +361,30 @@
     "state": "CONT"
    },
    {
-    "s": "TECHM",
+    "s": "RBLBANK",
     "conv": "Med",
-    "state": "CONT"
-   },
-   {
-    "s": "TATAELXSI",
-    "conv": "Low",
-    "state": "CONT"
+    "state": "NEW"
    }
   ],
-  "n_longs": 3,
+  "n_longs": 6,
   "n_shorts": 30,
-  "n_fades": 5,
+  "n_fades": 4,
   "squeeze": [
    "2 F&O names broke their coil: 360ONE (dn), CDSL (dn)"
   ],
-  "opps_asof": "2026-10-23"
+  "opps_asof": "2026-10-26"
  },
  "flips": {
   "bull": [
-   "ALL %>50 DMA above 45 (now 10.9, needs +34.1)",
-   "Thrust day in ALL: >10% of universe up 4% at 3:1 (today 1.9%, 0.1:1)",
-   "Nifty 50 %>50 DMA reclaims 30 (now 16.0)"
+   "ALL %>50 DMA above 45 (now 12.2, needs +32.8)",
+   "Thrust day in ALL: >10% of universe up 4% at 3:1 (today 8.7%, 1.8:1)",
+   "Nifty 50 %>50 DMA reclaims 30 (now 24.0)"
   ],
   "bear": [
-   "ALL back under 30 (now 10.9, met)",
-   "New lows retake new highs (now 26 vs 441)",
+   "ALL back under 30 (now 12.2, met)",
+   "New lows retake new highs (now 29 vs 246)",
    "Washout (<12) then in play: bearish extremes carry the better base rate for bottoms"
   ]
  },
- "bottom": "Washout regime (ALL 10.9, -14.0 in 5d). Signal firing (washout in All NSE, washout in Midcap 150, washout in Smallcap 250, washout in F&O, washout in Next 50, washout in Nifty 500): check its base rate on the panel before acting. Stock-specific Stage-2 longs and Stage-4 shorts at small size. Options fairly priced: pick structure by view, keep risk defined."
+ "bottom": "Weak regime (ALL 12.2, -14.2 in 5d). Large caps carrying a narrow tape. Signal firing (washout in Midcap 150, washout in Next 50): check its base rate on the panel before acting. Stock-specific Stage-2 longs and Stage-4 shorts at small size. Options fairly priced: pick structure by view, keep risk defined."
 }
