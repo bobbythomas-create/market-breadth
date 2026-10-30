@@ -1,0 +1,375 @@
+{
+ "asof": "2026-10-30",
+ "prev_asof": "2026-10-29",
+ "headline": "weak, recovering, confirmed by a thrust",
+ "core": [
+  {
+   "u": "ALL",
+   "label": "All NSE",
+   "n": 2703,
+   "a50": 16.6,
+   "d5": 5.7,
+   "a150": 26.4,
+   "a200": 29.5,
+   "posture": "Stand aside",
+   "band": "weak"
+  },
+  {
+   "u": "NIFTY50",
+   "label": "Nifty 50",
+   "n": 50,
+   "a50": 36.0,
+   "d5": 20.0,
+   "a150": 26.0,
+   "a200": 32.0,
+   "posture": "Defensive",
+   "band": "corrective"
+  },
+  {
+   "u": "MIDCAP150",
+   "label": "Midcap 150",
+   "n": 149,
+   "a50": 16.9,
+   "d5": 8.1,
+   "a150": 26.4,
+   "a200": 29.1,
+   "posture": "Stand aside",
+   "band": "weak"
+  },
+  {
+   "u": "SMALLCAP250",
+   "label": "Smallcap 250",
+   "n": 246,
+   "a50": 17.1,
+   "d5": 6.5,
+   "a150": 28.2,
+   "a200": 32.4,
+   "posture": "Stand aside",
+   "band": "weak"
+  },
+  {
+   "u": "SEC_BANK",
+   "label": "Bank",
+   "n": 14,
+   "a50": 42.9,
+   "d5": 14.3,
+   "a150": 35.7,
+   "a200": 35.7,
+   "posture": "Defensive",
+   "band": "corrective"
+  },
+  {
+   "u": "SEC_IT",
+   "label": "IT",
+   "n": 10,
+   "a50": 80.0,
+   "d5": 0.0,
+   "a150": 90.0,
+   "a200": 80.0,
+   "posture": "Aggressive",
+   "band": "broad"
+  }
+ ],
+ "more": [
+  {
+   "u": "LIQUID",
+   "label": "Liquid",
+   "n": 1356,
+   "a50": 19.7,
+   "d5": 7.2,
+   "a150": 34.8,
+   "a200": 39.4,
+   "posture": "Stand aside",
+   "band": "weak"
+  },
+  {
+   "u": "FNO",
+   "label": "F&O",
+   "n": 218,
+   "a50": 24.9,
+   "d5": 15.0,
+   "a150": 25.4,
+   "a200": 29.5,
+   "posture": "Stand aside",
+   "band": "weak"
+  },
+  {
+   "u": "NIFTYNEXT50",
+   "label": "Next 50",
+   "n": 50,
+   "a50": 22.0,
+   "d5": 16.0,
+   "a150": 26.5,
+   "a200": 30.6,
+   "posture": "Stand aside",
+   "band": "weak"
+  },
+  {
+   "u": "NIFTY500",
+   "label": "Nifty 500",
+   "n": 495,
+   "a50": 19.5,
+   "d5": 9.4,
+   "a150": 27.2,
+   "a200": 31.1,
+   "posture": "Stand aside",
+   "band": "weak"
+  }
+ ],
+ "sectors": [
+  {
+   "u": "SEC_IT",
+   "label": "IT",
+   "n": 10,
+   "a50": 80.0,
+   "d5": 0.0,
+   "a150": 90.0,
+   "a200": 80.0,
+   "posture": "Aggressive",
+   "band": "broad"
+  },
+  {
+   "u": "SEC_PHARMA",
+   "label": "Pharma",
+   "n": 20,
+   "a50": 55.0,
+   "d5": 40.0,
+   "a150": 70.0,
+   "a200": 75.0,
+   "posture": "Normal",
+   "band": "neutral"
+  },
+  {
+   "u": "SEC_MEDIA",
+   "label": "Media",
+   "n": 10,
+   "a50": 50.0,
+   "d5": 10.0,
+   "a150": 70.0,
+   "a200": 70.0,
+   "posture": "Normal",
+   "band": "neutral"
+  },
+  {
+   "u": "SEC_BANK",
+   "label": "Bank",
+   "n": 14,
+   "a50": 42.9,
+   "d5": 14.3,
+   "a150": 35.7,
+   "a200": 35.7,
+   "posture": "Defensive",
+   "band": "corrective"
+  },
+  {
+   "u": "SEC_INFRA",
+   "label": "Infra",
+   "n": 30,
+   "a50": 26.7,
+   "d5": 16.7,
+   "a150": 26.7,
+   "a200": 33.3,
+   "posture": "Defensive",
+   "band": "corrective"
+  },
+  {
+   "u": "SEC_FINSRV",
+   "label": "Fin Services",
+   "n": 20,
+   "a50": 20.0,
+   "d5": 5.0,
+   "a150": 10.0,
+   "a200": 15.0,
+   "posture": "Stand aside",
+   "band": "weak"
+  },
+  {
+   "u": "SEC_AUTO",
+   "label": "Auto",
+   "n": 15,
+   "a50": 20.0,
+   "d5": 20.0,
+   "a150": 26.7,
+   "a200": 33.3,
+   "posture": "Stand aside",
+   "band": "weak"
+  },
+  {
+   "u": "SEC_FMCG",
+   "label": "FMCG",
+   "n": 15,
+   "a50": 20.0,
+   "d5": 20.0,
+   "a150": 6.7,
+   "a200": 6.7,
+   "posture": "Stand aside",
+   "band": "weak"
+  },
+  {
+   "u": "SEC_REALTY",
+   "label": "Realty",
+   "n": 10,
+   "a50": 20.0,
+   "d5": 20.0,
+   "a150": 30.0,
+   "a200": 30.0,
+   "posture": "Stand aside",
+   "band": "weak"
+  },
+  {
+   "u": "SEC_PSE",
+   "label": "PSE",
+   "n": 20,
+   "a50": 15.0,
+   "d5": 15.0,
+   "a150": 15.0,
+   "a200": 20.0,
+   "posture": "Stand aside",
+   "band": "weak"
+  },
+  {
+   "u": "SEC_METAL",
+   "label": "Metal",
+   "n": 15,
+   "a50": 13.3,
+   "d5": 13.3,
+   "a150": 14.3,
+   "a200": 21.4,
+   "posture": "Stand aside",
+   "band": "weak"
+  },
+  {
+   "u": "SEC_ENERGY",
+   "label": "Energy",
+   "n": 40,
+   "a50": 7.5,
+   "d5": 5.0,
+   "a150": 12.5,
+   "a200": 20.0,
+   "posture": "Recovery watch",
+   "band": "washout"
+  }
+ ],
+ "numbers": [
+  "ALL %>50 DMA 10.9 to 16.6 in 5 sessions (+5.7). Band: weak.",
+  "Narrow rally: Nifty 50 36.0 vs ALL 16.6, Smallcap 250 17.1 (gap -19.4 pts). Large caps carry the index; broad market lags.",
+  "Sectors: strongest IT 80.0, weakest Energy 7.5. At washout (<12): Energy.",
+  "No base-rate signal firing (washout, thrust, divergence). Recent thrust: All NSE (27 Oct), Smallcap 250 (27 Oct), Liquid (27 Oct), Next 50 (29 Oct), Nifty 500 (27 Oct).",
+  "52-week highs vs lows (ALL): 43 vs 217, 5 sessions ago 26 vs 441."
+ ],
+ "fno": {
+  "index": [
+   {
+    "label": "Nifty 50",
+    "trend": "down",
+    "posture": "trend down, sell rallies / bear structures",
+    "ret1": 0.51
+   },
+   {
+    "label": "Bank Nifty",
+    "trend": "down",
+    "posture": "trend down, sell rallies / bear structures",
+    "ret1": -0.41
+   }
+  ],
+  "vol": {
+   "vix": 15.3,
+   "ivrank": 33.0,
+   "vrp_pctile": 33.0,
+   "exp_1w_pct": 2.16,
+   "exp_1w_pts": 497.0,
+   "hint": "Options fairly priced: pick structure by view, keep risk defined."
+  },
+  "longs": [
+   {
+    "s": "LAURUSLABS",
+    "conv": "High",
+    "state": "CONT"
+   },
+   {
+    "s": "ATHERENERG",
+    "conv": "High",
+    "state": "CONT"
+   },
+   {
+    "s": "NAVINFLUOR",
+    "conv": "High",
+    "state": "NEW"
+   },
+   {
+    "s": "ZYDUSLIFE",
+    "conv": "High",
+    "state": "CONT"
+   },
+   {
+    "s": "COFORGE",
+    "conv": "High",
+    "state": "CONT"
+   },
+   {
+    "s": "TRENT",
+    "conv": "High",
+    "state": "NEW"
+   }
+  ],
+  "shorts": [
+   {
+    "s": "SUZLON",
+    "conv": "High",
+    "state": "NEW"
+   },
+   {
+    "s": "CAMS",
+    "conv": "High",
+    "state": "NEW"
+   },
+   {
+    "s": "AMBER",
+    "conv": "High",
+    "state": "NEW"
+   },
+   {
+    "s": "VBL",
+    "conv": "High",
+    "state": "NEW"
+   },
+   {
+    "s": "SAGILITY",
+    "conv": "High",
+    "state": "NEW"
+   },
+   {
+    "s": "INOXWIND",
+    "conv": "High",
+    "state": "CONT"
+   }
+  ],
+  "fades": [
+   {
+    "s": "DRREDDY",
+    "conv": "Med",
+    "state": "NEW"
+   }
+  ],
+  "n_longs": 18,
+  "n_shorts": 30,
+  "n_fades": 1,
+  "squeeze": [
+   "3 F&O names broke their coil: CUB (dn), DATAPATTNS (dn), KAYNES (dn)"
+  ],
+  "opps_asof": "2026-10-30"
+ },
+ "flips": {
+  "bull": [
+   "ALL %>50 DMA above 45 (now 16.6, needs +28.4)",
+   "Thrust day in ALL: >10% of universe up 4% at 3:1 (today 3.0%, 0.2:1)",
+   "Nifty 50 %>50 DMA reclaims 30 (now 36.0)"
+  ],
+  "bear": [
+   "ALL back under 30 (now 16.6, met)",
+   "New lows retake new highs (now 43 vs 217)",
+   "Washout (<12) then in play: bearish extremes carry the better base rate for bottoms"
+  ]
+ },
+ "bottom": "Weak regime (ALL 16.6, +5.7 in 5d). Large caps carrying a narrow tape. No base-rate signal: index lean follows the trend (down) until one fires. Stock-specific Stage-2 longs and Stage-4 shorts at small size. Options fairly priced: pick structure by view, keep risk defined."
+}

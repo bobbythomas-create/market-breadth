@@ -1,1 +1,1 @@
-{"asof":"2026-10-29","changes":[{"tag":"SHORT-TERM","msg":"10 DMA breadth +14 pts (31->45)","book":"both"},{"tag":"SQUEEZE FIRE","msg":"2 F&O names broke their coil: CUB (up), KAYNES (dn)","book":"trade"}],"quiet":false,"prev_asof":"2026-10-28"}
+{"asof":"2026-10-30","changes":[{"tag":"SHORT-TERM","msg":"10 DMA breadth -12 pts (45->32)","book":"both"},{"tag":"SQUEEZE FIRE","msg":"3 F&O names broke their coil: CUB (dn), DATAPATTNS (dn), KAYNES (dn)","book":"trade"}],"quiet":false,"prev_asof":"2026-10-29"}
