@@ -1,1 +1,1 @@
-{"asof":"2026-11-03","changes":[{"tag":"REGIME","msg":"Regime Stand aside -> Defensive","book":"invest"},{"tag":"SHORT-TERM","msg":"10 DMA breadth +10 pts (54->64)","book":"both"},{"tag":"SQUEEZE FIRE","msg":"1 F&O names broke their coil: ONGC (up)","book":"trade"},{"tag":"EVENT","msg":"1 F&O names moved >|8%|: MARICO +10.0%","book":"trade"}],"quiet":false,"prev_asof":"2026-11-02"}
+{"asof":"2026-11-04","changes":[{"tag":"SHORT-TERM","msg":"10 DMA breadth +16 pts (64->80)","book":"both"}],"quiet":false,"prev_asof":"2026-11-03"}
