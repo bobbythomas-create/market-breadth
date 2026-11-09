@@ -1,1 +1,1 @@
-{"asof":"2026-11-06","changes":[{"tag":"SHORT-TERM","msg":"10 DMA breadth -11 pts (84->74)","book":"both"},{"tag":"SQUEEZE FIRE","msg":"1 F&O names broke their coil: OIL (dn)","book":"trade"},{"tag":"EVENT","msg":"1 F&O names moved >|8%|: ASTRAL -9.7%","book":"trade"}],"quiet":false,"prev_asof":"2026-11-05"}
+{"asof":"2026-11-09","changes":[{"tag":"SQUEEZE FIRE","msg":"1 F&O names broke their coil: OIL (dn)","book":"trade"},{"tag":"EVENT","msg":"1 F&O names moved >|8%|: DATAPATTNS +8.7%","book":"trade"}],"quiet":false,"prev_asof":"2026-11-06"}
