@@ -284,12 +284,12 @@
    {
     "s": "PNB",
     "conv": "High",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "IREDA",
     "conv": "High",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "DIVISLAB",
@@ -299,17 +299,17 @@
    {
     "s": "INDIANB",
     "conv": "High",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "BANKBARODA",
     "conv": "High",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "BANKINDIA",
     "conv": "High",
-    "state": "NEW"
+    "state": "CONT"
    }
   ],
   "shorts": [
@@ -321,22 +321,22 @@
    {
     "s": "DABUR",
     "conv": "Med",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "SWIGGY",
     "conv": "Med",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "POLICYBZR",
     "conv": "Med",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "POWERGRID",
     "conv": "Med",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "ASTRAL",
@@ -348,12 +348,12 @@
    {
     "s": "IOC",
     "conv": "High",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "ASHOKLEY",
     "conv": "Med",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "PRESTIGE",
@@ -363,17 +363,17 @@
    {
     "s": "JINDALSTEL",
     "conv": "Med",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "BAJFINANCE",
     "conv": "Med",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "NHPC",
     "conv": "Med",
-    "state": "NEW"
+    "state": "CONT"
    }
   ],
   "n_longs": 30,
