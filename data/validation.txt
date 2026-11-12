@@ -1,9 +1,9 @@
-generated: 2026-11-10T21:11:06
-sessions: 1947  rows: 36363
+generated: 2026-11-12T21:44:47
+sessions: 1949  rows: 36403
 ALL: universe size jumped >10% on 7 day(s)
 ALL: Nifty close missing on 3 day(s)
 FNO: universe size jumped >10% on 1 day(s)
-LIQUID: universe size jumped >10% on 81 day(s)
+LIQUID: universe size jumped >10% on 82 day(s)
 LIQUID: Nifty close missing on 2 day(s)
 NIFTY500: universe size jumped >10% on 4 day(s)
 NIFTY500: Nifty close missing on 2 day(s)
