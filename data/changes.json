@@ -1,1 +1,1 @@
-{"asof":"2026-11-12","changes":[{"tag":"REGIME","msg":"Regime Defensive -> Normal","book":"invest"},{"tag":"EVENT","msg":"1 F&O names moved >|8%|: PAGEIND -12.9%","book":"trade"}],"quiet":false,"prev_asof":"2026-11-09"}
+{"asof":"2026-11-13","changes":[{"tag":"NIFTY VOL","msg":"Nifty expansion -> normal","book":"trade"},{"tag":"EVENT","msg":"2 F&O names moved >|8%|: POWERINDIA +10.7%, AMBER +9.1%","book":"trade"}],"quiet":false,"prev_asof":"2026-11-12"}
