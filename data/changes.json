@@ -1,1 +1,1 @@
-{"asof":"2026-11-16","changes":[{"tag":"REGIME","msg":"Regime Normal -> Defensive","book":"invest"},{"tag":"SHORT-TERM","msg":"10 DMA breadth -19 pts (71->52)","book":"both"},{"tag":"EVENT","msg":"4 F&O names moved >|8%|: PREMIERENE -8.2%, LAURUSLABS -8.4%, TMPV -8.7%, KAYNES -13.1%","book":"trade"}],"quiet":false,"prev_asof":"2026-11-13"}
+{"asof":"2026-11-17","changes":[{"tag":"REGIME","msg":"Regime Defensive -> Normal","book":"invest"}],"quiet":false,"prev_asof":"2026-11-16"}
