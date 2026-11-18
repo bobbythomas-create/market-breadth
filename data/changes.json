@@ -1,1 +1,1 @@
-{"asof":"2026-11-17","changes":[{"tag":"REGIME","msg":"Regime Defensive -> Normal","book":"invest"}],"quiet":false,"prev_asof":"2026-11-16"}
+{"asof":"2026-11-18","changes":[{"tag":"REGIME","msg":"Regime Normal -> Defensive","book":"invest"},{"tag":"SHORT-TERM","msg":"10 DMA breadth -12 pts (52->40)","book":"both"}],"quiet":false,"prev_asof":"2026-11-17"}
