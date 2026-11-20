@@ -1,1 +1,1 @@
-{"asof": "2026-11-19", "regime": "Normal", "a50": 46.4, "a10": 45.9, "r5": 1.02, "vix": 16.11, "ivrank": 37.0, "nifty_state": "normal", "nifty_atr_pctile": 74.0, "bank_state": "normal", "strict": 1, "strict_names": ["ARIS"]}
+{"asof": "2026-11-20", "regime": "Defensive", "a50": 44.4, "a10": 41.1, "r5": 0.85, "vix": 17.32, "ivrank": 44.0, "nifty_state": "normal", "nifty_atr_pctile": 79.0, "bank_state": "expansion", "strict": 1, "strict_names": ["ARIS"]}

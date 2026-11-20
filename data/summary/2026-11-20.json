@@ -1,0 +1,378 @@
+{
+ "asof": "2026-11-20",
+ "prev_asof": "2026-11-19",
+ "headline": "corrective, deteriorating, confirmed by a thrust",
+ "core": [
+  {
+   "u": "ALL",
+   "label": "All NSE",
+   "n": 2760,
+   "a50": 38.4,
+   "d5": -6.6,
+   "a150": 38.4,
+   "a200": 42.2,
+   "posture": "Defensive",
+   "band": "corrective"
+  },
+  {
+   "u": "NIFTY50",
+   "label": "Nifty 50",
+   "n": 50,
+   "a50": 86.0,
+   "d5": 4.0,
+   "a150": 70.0,
+   "a200": 70.0,
+   "posture": "Aggressive",
+   "band": "broad"
+  },
+  {
+   "u": "MIDCAP150",
+   "label": "Midcap 150",
+   "n": 149,
+   "a50": 58.8,
+   "d5": 4.1,
+   "a150": 46.0,
+   "a200": 50.0,
+   "posture": "Aggressive",
+   "band": "neutral"
+  },
+  {
+   "u": "SMALLCAP250",
+   "label": "Smallcap 250",
+   "n": 246,
+   "a50": 46.9,
+   "d5": 1.6,
+   "a150": 42.1,
+   "a200": 44.8,
+   "posture": "Normal",
+   "band": "neutral"
+  },
+  {
+   "u": "SEC_BANK",
+   "label": "Bank",
+   "n": 14,
+   "a50": 92.9,
+   "d5": 14.3,
+   "a150": 85.7,
+   "a200": 85.7,
+   "posture": "Aggressive",
+   "band": "broad"
+  },
+  {
+   "u": "SEC_IT",
+   "label": "IT",
+   "n": 10,
+   "a50": 80.0,
+   "d5": -10.0,
+   "a150": 70.0,
+   "a200": 60.0,
+   "posture": "Aggressive",
+   "band": "broad"
+  }
+ ],
+ "more": [
+  {
+   "u": "LIQUID",
+   "label": "Liquid",
+   "n": 1373,
+   "a50": 44.4,
+   "d5": -4.9,
+   "a150": 44.9,
+   "a200": 49.7,
+   "posture": "Defensive",
+   "band": "corrective"
+  },
+  {
+   "u": "FNO",
+   "label": "F&O",
+   "n": 218,
+   "a50": 70.0,
+   "d5": 0.9,
+   "a150": 57.1,
+   "a200": 56.7,
+   "posture": "Aggressive",
+   "band": "broad"
+  },
+  {
+   "u": "NIFTYNEXT50",
+   "label": "Next 50",
+   "n": 50,
+   "a50": 62.0,
+   "d5": -8.0,
+   "a150": 55.1,
+   "a200": 55.1,
+   "posture": "Aggressive",
+   "band": "broad"
+  },
+  {
+   "u": "NIFTY500",
+   "label": "Nifty 500",
+   "n": 495,
+   "a50": 56.0,
+   "d5": 1.6,
+   "a150": 47.4,
+   "a200": 50.0,
+   "posture": "Normal",
+   "band": "neutral"
+  }
+ ],
+ "sectors": [
+  {
+   "u": "SEC_BANK",
+   "label": "Bank",
+   "n": 14,
+   "a50": 92.9,
+   "d5": 14.3,
+   "a150": 85.7,
+   "a200": 85.7,
+   "posture": "Aggressive",
+   "band": "broad"
+  },
+  {
+   "u": "SEC_REALTY",
+   "label": "Realty",
+   "n": 10,
+   "a50": 90.0,
+   "d5": 10.0,
+   "a150": 60.0,
+   "a200": 60.0,
+   "posture": "Normal",
+   "band": "broad"
+  },
+  {
+   "u": "SEC_FMCG",
+   "label": "FMCG",
+   "n": 15,
+   "a50": 86.7,
+   "d5": 26.7,
+   "a150": 40.0,
+   "a200": 33.3,
+   "posture": "Aggressive",
+   "band": "broad"
+  },
+  {
+   "u": "SEC_FINSRV",
+   "label": "Fin Services",
+   "n": 20,
+   "a50": 80.0,
+   "d5": -5.0,
+   "a150": 65.0,
+   "a200": 65.0,
+   "posture": "Aggressive",
+   "band": "broad"
+  },
+  {
+   "u": "SEC_IT",
+   "label": "IT",
+   "n": 10,
+   "a50": 80.0,
+   "d5": -10.0,
+   "a150": 70.0,
+   "a200": 60.0,
+   "posture": "Aggressive",
+   "band": "broad"
+  },
+  {
+   "u": "SEC_AUTO",
+   "label": "Auto",
+   "n": 15,
+   "a50": 80.0,
+   "d5": 6.7,
+   "a150": 73.3,
+   "a200": 73.3,
+   "posture": "Aggressive",
+   "band": "broad"
+  },
+  {
+   "u": "SEC_INFRA",
+   "label": "Infra",
+   "n": 30,
+   "a50": 76.7,
+   "d5": 10.0,
+   "a150": 60.0,
+   "a200": 60.0,
+   "posture": "Aggressive",
+   "band": "broad"
+  },
+  {
+   "u": "SEC_PHARMA",
+   "label": "Pharma",
+   "n": 20,
+   "a50": 70.0,
+   "d5": 10.0,
+   "a150": 65.0,
+   "a200": 80.0,
+   "posture": "Normal",
+   "band": "broad"
+  },
+  {
+   "u": "SEC_PSE",
+   "label": "PSE",
+   "n": 20,
+   "a50": 50.0,
+   "d5": 5.0,
+   "a150": 35.0,
+   "a200": 35.0,
+   "posture": "Normal",
+   "band": "neutral"
+  },
+  {
+   "u": "SEC_MEDIA",
+   "label": "Media",
+   "n": 10,
+   "a50": 50.0,
+   "d5": -10.0,
+   "a150": 50.0,
+   "a200": 60.0,
+   "posture": "Normal",
+   "band": "neutral"
+  },
+  {
+   "u": "SEC_ENERGY",
+   "label": "Energy",
+   "n": 40,
+   "a50": 45.0,
+   "d5": 0.0,
+   "a150": 37.5,
+   "a200": 37.5,
+   "posture": "Normal",
+   "band": "neutral"
+  },
+  {
+   "u": "SEC_METAL",
+   "label": "Metal",
+   "n": 15,
+   "a50": 20.0,
+   "d5": -26.7,
+   "a150": 28.6,
+   "a200": 28.6,
+   "posture": "Stand aside",
+   "band": "weak"
+  }
+ ],
+ "numbers": [
+  "ALL %>50 DMA 45.0 to 38.4 in 5 sessions (-6.6). Band: corrective.",
+  "Narrow rally: Nifty 50 86.0 vs ALL 38.4, Smallcap 250 46.9 (gap -47.6 pts). Large caps carry the index; broad market lags.",
+  "Sectors: strongest Bank 92.9, weakest Metal 20.0.",
+  "Firing: bear divergence in All NSE, bear divergence in Nifty 50, bear divergence in Midcap 150, bear divergence in Smallcap 250, thrust in Bank, bear divergence in IT, bear divergence in Liquid, bear divergence in F&O, bear divergence in Next 50, bear divergence in Nifty 500. Recent thrust: Nifty 50 (19 Nov), Next 50 (19 Nov).",
+  "52-week highs vs lows (ALL): 100 vs 91, 5 sessions ago 66 vs 42."
+ ],
+ "fno": {
+  "index": [
+   {
+    "label": "Nifty 50",
+    "trend": "mixed",
+    "posture": "no clean trend, range / neutral",
+    "ret1": 1.12
+   },
+   {
+    "label": "Bank Nifty",
+    "trend": "mixed",
+    "posture": "no clean trend, range / neutral",
+    "ret1": 2.49
+   }
+  ],
+  "vol": {
+   "vix": 17.32,
+   "ivrank": 44.0,
+   "vrp_pctile": 48.0,
+   "exp_1w_pct": 2.44,
+   "exp_1w_pts": 629.0,
+   "hint": "Options fairly priced: pick structure by view, keep risk defined."
+  },
+  "longs": [
+   {
+    "s": "INDUSINDBK",
+    "conv": "High",
+    "state": "NEW"
+   },
+   {
+    "s": "CUB",
+    "conv": "High",
+    "state": "NEW"
+   },
+   {
+    "s": "APOLLOHOSP",
+    "conv": "High",
+    "state": "NEW"
+   },
+   {
+    "s": "AXISBANK",
+    "conv": "High",
+    "state": "NEW"
+   },
+   {
+    "s": "PERSISTENT",
+    "conv": "High",
+    "state": "NEW"
+   },
+   {
+    "s": "UNIONBANK",
+    "conv": "High",
+    "state": "NEW"
+   }
+  ],
+  "shorts": [
+   {
+    "s": "VEDL",
+    "conv": "High",
+    "state": "CONT"
+   },
+   {
+    "s": "INOXWIND",
+    "conv": "High",
+    "state": "CONT"
+   },
+   {
+    "s": "SWIGGY",
+    "conv": "Med",
+    "state": "CONT"
+   },
+   {
+    "s": "COCHINSHIP",
+    "conv": "Med",
+    "state": "CONT"
+   },
+   {
+    "s": "PIIND",
+    "conv": "Med",
+    "state": "CONT"
+   },
+   {
+    "s": "KPITTECH",
+    "conv": "Med",
+    "state": "CONT"
+   }
+  ],
+  "fades": [
+   {
+    "s": "VOLTAS",
+    "conv": "Med",
+    "state": "NEW"
+   },
+   {
+    "s": "NAVINFLUOR",
+    "conv": "Med",
+    "state": "CONT"
+   }
+  ],
+  "n_longs": 30,
+  "n_shorts": 14,
+  "n_fades": 2,
+  "squeeze": [],
+  "opps_asof": "2026-11-20"
+ },
+ "flips": {
+  "bull": [
+   "ALL %>50 DMA above 45 (now 38.4, needs +6.6)",
+   "Thrust day in ALL: >10% of universe up 4% at 3:1 (today 2.6%, 0.5:1)",
+   "Nifty 50 %>50 DMA reclaims 30 (now 86.0)"
+  ],
+  "bear": [
+   "ALL back under 30 (now 38.4, 8.4 pts cushion)",
+   "New lows retake new highs (now 100 vs 91)",
+   "Washout (<12) then in play: bearish extremes carry the better base rate for bottoms"
+  ]
+ },
+ "bottom": "Corrective regime (ALL 38.4, -6.6 in 5d). Large caps carrying a narrow tape. Signal firing (bear divergence in All NSE, bear divergence in Nifty 50, bear divergence in Midcap 150, bear divergence in Smallcap 250, thrust in Bank, bear divergence in IT, bear divergence in Liquid, bear divergence in F&O, bear divergence in Next 50, bear divergence in Nifty 500): check its base rate on the panel before acting. Stock-specific Stage-2 longs and Stage-4 shorts at small size. Options fairly priced: pick structure by view, keep risk defined."
+}

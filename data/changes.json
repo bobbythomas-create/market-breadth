@@ -1,1 +1,1 @@
-{"asof":"2026-11-19","changes":[{"tag":"REGIME","msg":"Regime Defensive -> Normal","book":"invest"},{"tag":"EVENT","msg":"4 F&O names moved >|8%|: VOLTAS +9.0%, BLUESTARCO +8.8%, IREDA +8.3%, PAYTM -8.7%","book":"trade"}],"quiet":false,"prev_asof":"2026-11-18"}
+{"asof":"2026-11-20","changes":[{"tag":"REGIME","msg":"Regime Normal -> Defensive","book":"invest"},{"tag":"BANK VOL","msg":"Bank Nifty normal -> expansion","book":"trade"},{"tag":"EVENT","msg":"1 F&O names moved >|8%|: INDUSINDBK +8.6%","book":"trade"}],"quiet":false,"prev_asof":"2026-11-19"}
