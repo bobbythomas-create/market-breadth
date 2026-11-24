@@ -304,29 +304,29 @@
    {
     "s": "LAURUSLABS",
     "conv": "Med",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "MOTILALOFS",
     "conv": "Med",
-    "state": "NEW"
+    "state": "CONT"
    }
   ],
   "shorts": [
    {
     "s": "APLAPOLLO",
     "conv": "High",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "TATASTEEL",
     "conv": "High",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "RVNL",
     "conv": "High",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "KAYNES",
@@ -348,32 +348,32 @@
    {
     "s": "MAHABANK",
     "conv": "Med",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "APOLLOHOSP",
     "conv": "Med",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "BANKINDIA",
     "conv": "Med",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "PNB",
     "conv": "Med",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "SBIN",
     "conv": "Med",
-    "state": "NEW"
+    "state": "CONT"
    },
    {
     "s": "BLUESTARCO",
     "conv": "Med",
-    "state": "NEW"
+    "state": "CONT"
    }
   ],
   "n_longs": 30,
