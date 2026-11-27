@@ -1,1 +1,1 @@
-{"asof":"2026-11-26","changes":[{"tag":"SQUEEZE FIRE","msg":"1 F&O names broke their coil: UNIONBANK (up)","book":"trade"},{"tag":"EVENT","msg":"1 F&O names moved >|8%|: PRESTIGE +8.7%","book":"trade"}],"quiet":false,"prev_asof":"2026-11-25"}
+{"asof":"2026-11-27","changes":[{"tag":"REGIME","msg":"Regime Defensive -> Normal","book":"invest"},{"tag":"SHORT-TERM","msg":"10 DMA breadth +8 pts (38->47)","book":"both"},{"tag":"SQUEEZE FIRE","msg":"1 F&O names broke their coil: UNIONBANK (up)","book":"trade"}],"quiet":false,"prev_asof":"2026-11-26"}
